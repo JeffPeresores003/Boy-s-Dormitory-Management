@@ -6,15 +6,6 @@ const crypto = require('crypto');
 const pool = require('../config/config');
 const router = express.Router();
 
-// ---- Mock admin account (used when DB is unavailable) ---- //
-const MOCK_ADMIN = {
-  id: 1,
-  name: 'System Administrator',
-  email: 'admin@bisu.edu.ph',
-  password: 'Admin@123',
-  role: 'admin',
-};
-
 // ---------------- User Login ---------------- //
 router.post("/login", async (req, res) => {
   try {
@@ -24,22 +15,8 @@ router.post("/login", async (req, res) => {
       return res.status(400).json({ message: 'Email and password are required' });
     }
 
-    let user;
-    try {
-      const [rows] = await pool.execute(
-        "SELECT * FROM Users WHERE email = ?",
-        [email]
-      );
-      user = rows && rows.length > 0 ? rows[0] : null;
-    } catch (dbErr) {
-      console.warn('DB unavailable, falling back to mock account');
-      // Fallback: check against mock admin
-      if (email === MOCK_ADMIN.email && password === MOCK_ADMIN.password) {
-        const token = jwt.sign({ id: MOCK_ADMIN.id, mock: true }, process.env.JWT_SECRET, { expiresIn: process.env.JWT_EXPIRE || '7d' });
-        return res.json({ token, user: { id: MOCK_ADMIN.id, name: MOCK_ADMIN.name, email: MOCK_ADMIN.email, role: MOCK_ADMIN.role } });
-      }
-      return res.status(401).json({ message: 'Invalid email or password' });
-    }
+    const [rows] = await pool.execute('CALL sp_GetUserByEmail(?)', [email]);
+    const user = rows[0] && rows[0].length > 0 ? rows[0][0] : null;
 
     if (!user) {
       return res.status(401).json({ message: 'Invalid email or password' });
@@ -124,11 +101,6 @@ router.get("/me", async (req, res) => {
     }
 
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
-
-    // If token was issued in mock mode, return mock user
-    if (decoded.mock) {
-      return res.json({ id: MOCK_ADMIN.id, name: MOCK_ADMIN.name, email: MOCK_ADMIN.email, role: MOCK_ADMIN.role });
-    }
 
     const [userRows] = await pool.execute(
       "SELECT id, name, email, role FROM Users WHERE id = ?",

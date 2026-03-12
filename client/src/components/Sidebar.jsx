@@ -1,9 +1,8 @@
-import { NavLink } from 'react-router-dom';
+import { NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import {
   HiOutlineHome, HiOutlineUserGroup, HiOutlineOfficeBuilding, HiOutlineCash,
-  HiOutlineClipboardList, HiOutlineCog, HiOutlineSpeakerphone, HiOutlineChartBar,
-  HiOutlineX,
+  HiOutlineClipboardList, HiOutlineChartBar, HiOutlineX, HiOutlineViewList, HiOutlineLogout,
 } from 'react-icons/hi';
 
 const adminLinks = [
@@ -11,15 +10,20 @@ const adminLinks = [
   { to: '/admin/tenants', label: 'Tenants', icon: HiOutlineUserGroup },
   { to: '/admin/rooms', label: 'Rooms', icon: HiOutlineOfficeBuilding },
   { to: '/admin/payments', label: 'Payments', icon: HiOutlineCash },
+  { to: '/admin/payment-records', label: 'Payment Records', icon: HiOutlineViewList },
   { to: '/admin/visitors', label: 'Visitors', icon: HiOutlineClipboardList },
-  { to: '/admin/maintenance', label: 'Maintenance', icon: HiOutlineCog },
-  { to: '/admin/announcements', label: 'Announcements', icon: HiOutlineSpeakerphone },
   { to: '/admin/reports', label: 'Reports', icon: HiOutlineChartBar },
 ];
 
 const Sidebar = ({ open, onClose }) => {
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
+  const navigate = useNavigate();
   const links = adminLinks;
+
+  const handleLogout = () => {
+    logout();
+    navigate('/login');
+  };
 
   return (
     <>
@@ -29,7 +33,7 @@ const Sidebar = ({ open, onClose }) => {
       )}
 
       <aside className={`
-        fixed inset-y-0 left-0 z-50 w-64 bg-primary-800 text-white transform transition-transform duration-200 ease-in-out
+        fixed inset-y-0 left-0 z-50 w-64 bg-primary-800 text-white transform transition-transform duration-200 ease-in-out flex flex-col
         md:relative md:translate-x-0
         ${open ? 'translate-x-0' : '-translate-x-full'}
       `}>
@@ -46,7 +50,7 @@ const Sidebar = ({ open, onClose }) => {
           </button>
         </div>
 
-        <nav className="mt-4 px-2 space-y-1">
+        <nav className="mt-4 px-2 space-y-1 flex-1">
           {links.map(({ to, label, icon: Icon, end }) => (
             <NavLink
               key={to}
@@ -66,6 +70,16 @@ const Sidebar = ({ open, onClose }) => {
             </NavLink>
           ))}
         </nav>
+
+        <div className="px-2 pb-4">
+          <button
+            onClick={handleLogout}
+            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-primary-200 hover:bg-red-600/20 hover:text-red-300 transition-colors"
+          >
+            <HiOutlineLogout className="w-5 h-5" />
+            Logout
+          </button>
+        </div>
       </aside>
     </>
   );

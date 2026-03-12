@@ -111,7 +111,7 @@ const updateRoomStatus = async (roomId) => {
 // ---------------- Create Tenant ---------------- //
 router.post("/", async (req, res) => {
   try {
-    const { firstName, lastName, email, contact, type, department, roomId, guardianName, guardianContact } = req.body;
+    const { firstName, lastName, email, contact, type, department, roomId, guardianName, guardianContact, payment } = req.body;
 
     if (!firstName || !lastName || !email || !contact || !type || !roomId) {
       return res.status(400).json({ message: 'First name, last name, email, contact, type, and room are required' });
@@ -159,6 +159,25 @@ router.post("/", async (req, res) => {
 
     // Update room status
     await updateRoomStatus(roomId);
+
+    // Auto-create initial payment if provided
+    if (payment && payment.amount) {
+      try {
+        const now = new Date();
+        const year = now.getFullYear();
+        const month = now.getMonth() + 1;
+        const lastDay = new Date(year, month, 0).getDate();
+        const dueDate = `${year}-${String(month).padStart(2, '0')}-${lastDay}`;
+        const [payResult] = await pool.execute(
+          `INSERT INTO Payments (tenantId, amount, dueDate, semester, description, paymentMethod, recordedBy, createdAt, updatedAt) VALUES (?, ?, ?, '', ?, 'cash', ?, NOW(), NOW())`,
+          [result.insertId, parseFloat(payment.amount), dueDate, payment.description || 'Monthly Dormitory Fee', req.user.id]
+        );
+        const receiptNumber = `RCP-${Date.now()}-${payResult.insertId}`;
+        await pool.execute("UPDATE Payments SET receiptNumber = ? WHERE id = ?", [receiptNumber, payResult.insertId]);
+      } catch (payErr) {
+        console.error('Payment auto-create failed (tenant still created):', payErr.message);
+      }
+    }
 
     const [newTenant] = await pool.execute(
       `SELECT t.*, r.roomNumber, r.floor as roomFloor
@@ -275,6 +294,42 @@ router.put("/:id/archive", async (req, res) => {
     res.json({ message: 'Tenant archived successfully' });
   } catch (error) {
     console.error("Archive tenant error:", error);
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+});
+
+// ---------------- Delete Tenant ---------------- //
+router.delete("/:id", async (req, res) => {
+  try {
+    const [rows] = await pool.execute("SELECT * FROM Tenants WHERE id = ?", [req.params.id]);
+    if (!rows.length) return res.status(404).json({ message: 'Tenant not found' });
+
+    const tenant = rows[0];
+
+    // Delete associated payments and payment records
+    await pool.execute("DELETE FROM Payments WHERE tenantId = ?", [req.params.id]);
+    await pool.execute("DELETE FROM PaymentRecords WHERE tenantId = ?", [req.params.id]);
+
+    // Delete tenant
+    await pool.execute("DELETE FROM Tenants WHERE id = ?", [req.params.id]);
+
+    // Free up the room if assigned
+    if (tenant.roomId) {
+      const [occupantCount] = await pool.execute(
+        "SELECT COUNT(*) as count FROM Tenants WHERE roomId = ? AND status = 'active'",
+        [tenant.roomId]
+      );
+      const [roomInfo] = await pool.execute("SELECT capacity FROM Rooms WHERE id = ?", [tenant.roomId]);
+      if (roomInfo.length > 0) {
+        const newStatus = occupantCount[0].count === 0 ? 'available' :
+                          occupantCount[0].count >= roomInfo[0].capacity ? 'full' : 'available';
+        await pool.execute("UPDATE Rooms SET status = ?, updatedAt = NOW() WHERE id = ?", [newStatus, tenant.roomId]);
+      }
+    }
+
+    res.json({ message: 'Tenant deleted successfully' });
+  } catch (error) {
+    console.error("Delete tenant error:", error);
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 });

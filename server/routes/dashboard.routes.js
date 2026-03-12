@@ -11,38 +11,110 @@ router.use(authorize('admin'));
 // ---------------- Get Dashboard Stats ---------------- //
 router.get("/stats", async (req, res) => {
   try {
-    const [totalTenants] = await pool.execute("SELECT COUNT(*) as count FROM Tenants WHERE status = 'active'");
-    const [totalStudents] = await pool.execute("SELECT COUNT(*) as count FROM Tenants WHERE status = 'active' AND type = 'student'");
-    const [totalStaff] = await pool.execute("SELECT COUNT(*) as count FROM Tenants WHERE status = 'active' AND type = 'staff'");
-    const [totalFaculty] = await pool.execute("SELECT COUNT(*) as count FROM Tenants WHERE status = 'active' AND type = 'faculty'");
-    const [totalRooms] = await pool.execute("SELECT COUNT(*) as count FROM Rooms");
+    const [totalTenants]   = await pool.execute("SELECT COUNT(*) as count FROM Tenants WHERE status = 'active'");
+    const [totalStudents]  = await pool.execute("SELECT COUNT(*) as count FROM Tenants WHERE status = 'active' AND type = 'student'");
+    const [totalStaff]     = await pool.execute("SELECT COUNT(*) as count FROM Tenants WHERE status = 'active' AND type = 'staff'");
+    const [totalFaculty]   = await pool.execute("SELECT COUNT(*) as count FROM Tenants WHERE status = 'active' AND type = 'faculty'");
+    const [totalRooms]     = await pool.execute("SELECT COUNT(*) as count FROM Rooms");
     const [availableRooms] = await pool.execute("SELECT COUNT(*) as count FROM Rooms WHERE status = 'available'");
-    const [fullRooms] = await pool.execute("SELECT COUNT(*) as count FROM Rooms WHERE status = 'full'");
+    const [fullRooms]      = await pool.execute("SELECT COUNT(*) as count FROM Rooms WHERE status = 'full'");
     const [maintenanceRooms] = await pool.execute("SELECT COUNT(*) as count FROM Rooms WHERE status = 'maintenance'");
-    const [pendingPayments] = await pool.execute("SELECT COUNT(*) as count FROM Payments WHERE status = 'unpaid'");
-    const [partialPayments] = await pool.execute("SELECT COUNT(*) as count FROM Payments WHERE status = 'partial'");
-    const [activeRequests] = await pool.execute("SELECT COUNT(*) as count FROM MaintenanceRequests WHERE status != 'resolved'");
-    const [todayVisitors] = await pool.execute("SELECT COUNT(*) as count FROM Visitors WHERE DATE(timeIn) = CURDATE()");
-    const [billing] = await pool.execute("SELECT COALESCE(SUM(amount), 0) as totalBilled, COALESCE(SUM(amountPaid), 0) as totalCollected FROM Payments");
+    const [pendingPayments]  = await pool.execute("SELECT COUNT(*) as count FROM Payments WHERE status = 'unpaid'");
+    const [partialPayments]  = await pool.execute("SELECT COUNT(*) as count FROM Payments WHERE status = 'partial'");
+    const [todayVisitors]    = await pool.execute("SELECT COUNT(*) as count FROM Visitors WHERE DATE(timeIn) = CURDATE()");
+    const [billing] = await pool.execute(
+      "SELECT COALESCE(SUM(amount), 0) as totalBilled, COALESCE(SUM(amountPaid), 0) as totalCollected, COALESCE(SUM(amount - amountPaid), 0) as totalBalance FROM Payments"
+    );
+    const [capacityRow] = await pool.execute(
+      "SELECT COALESCE(SUM(capacity), 0) as totalCapacity FROM Rooms WHERE status != 'maintenance'"
+    );
+
+    const activeTenants  = parseInt(totalTenants[0].count);
+    const totalCapacity  = parseInt(capacityRow[0].totalCapacity);
+    const totalCollected = parseFloat(billing[0].totalCollected);
+    const totalBilled    = parseFloat(billing[0].totalBilled);
+    const occupancyRate  = totalCapacity > 0 ? Math.round((activeTenants / totalCapacity) * 100) : 0;
+    const collectionRate = totalBilled > 0 ? Math.round((totalCollected / totalBilled) * 100) : 0;
 
     res.json({
-      totalTenants: totalTenants[0].count,
-      totalStudents: totalStudents[0].count,
-      totalStaff: totalStaff[0].count,
-      totalFaculty: totalFaculty[0].count,
-      totalRooms: totalRooms[0].count,
-      availableRooms: availableRooms[0].count,
-      fullRooms: fullRooms[0].count,
-      maintenanceRooms: maintenanceRooms[0].count,
-      pendingPayments: pendingPayments[0].count,
-      partialPayments: partialPayments[0].count,
-      activeRequests: activeRequests[0].count,
-      todayVisitors: todayVisitors[0].count,
-      totalBilled: parseFloat(billing[0].totalBilled),
-      totalCollected: parseFloat(billing[0].totalCollected),
+      totalTenants:     activeTenants,
+      totalStudents:    parseInt(totalStudents[0].count),
+      totalStaff:       parseInt(totalStaff[0].count),
+      totalFaculty:     parseInt(totalFaculty[0].count),
+      totalRooms:       parseInt(totalRooms[0].count),
+      availableRooms:   parseInt(availableRooms[0].count),
+      fullRooms:        parseInt(fullRooms[0].count),
+      maintenanceRooms: parseInt(maintenanceRooms[0].count),
+      pendingPayments:  parseInt(pendingPayments[0].count),
+      partialPayments:  parseInt(partialPayments[0].count),
+      todayVisitors:    parseInt(todayVisitors[0].count),
+      totalBilled,
+      totalCollected,
+      totalBalance:     parseFloat(billing[0].totalBalance),
+      occupancyRate,
+      collectionRate,
+      totalCapacity,
     });
   } catch (error) {
     console.error("Get dashboard stats error:", error);
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+});
+
+// ---------------- Monthly Revenue (last 6 months) ---------------- //
+router.get("/analytics/monthly-revenue", async (req, res) => {
+  try {
+    const [rows] = await pool.execute(
+      `SELECT
+        DATE_FORMAT(paymentDate, '%b %Y') as label,
+        YEAR(paymentDate) as yr,
+        MONTH(paymentDate) as mo,
+        COALESCE(SUM(amountPaid), 0) as revenue
+       FROM Payments
+       WHERE paymentDate IS NOT NULL
+         AND paymentDate >= DATE_SUB(CURDATE(), INTERVAL 6 MONTH)
+       GROUP BY yr, mo, label
+       ORDER BY yr ASC, mo ASC`
+    );
+    res.json(rows);
+  } catch (error) {
+    console.error("Monthly revenue error:", error);
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+});
+
+// ---------------- Recent Tenants (last 5) ---------------- //
+router.get("/analytics/recent-tenants", async (req, res) => {
+  try {
+    const [rows] = await pool.execute(
+      `SELECT t.id, t.tenantNumber, t.firstName, t.lastName, t.type, t.status,
+              r.roomNumber
+       FROM Tenants t
+       LEFT JOIN Rooms r ON t.roomId = r.id
+       ORDER BY t.createdAt DESC
+       LIMIT 5`
+    );
+    res.json(rows);
+  } catch (error) {
+    console.error("Recent tenants error:", error);
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+});
+
+// ---------------- Recent Visitors (last 5) ---------------- //
+router.get("/analytics/recent-visitors", async (req, res) => {
+  try {
+    const [rows] = await pool.execute(
+      `SELECT v.id, v.visitorName, v.purpose, v.timeIn, v.timeOut,
+              t.firstName as tenantFirstName, t.lastName as tenantLastName
+       FROM Visitors v
+       LEFT JOIN Tenants t ON v.tenantVisitedId = t.id
+       ORDER BY v.timeIn DESC
+       LIMIT 5`
+    );
+    res.json(rows);
+  } catch (error) {
+    console.error("Recent visitors error:", error);
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 });
@@ -345,20 +417,6 @@ router.get("/reports/:type", async (req, res) => {
             parseFloat(p.amount), parseFloat(p.amountPaid),
             parseFloat(p.amount) - parseFloat(p.amountPaid), p.status,
             p.dueDate ? new Date(p.dueDate).toLocaleDateString() : '',
-          ]),
-        };
-      },
-      maintenance: async () => {
-        const [reqs] = await pool.execute(
-          `SELECT m.*, t.firstName, t.lastName, r.roomNumber FROM MaintenanceRequests m
-           LEFT JOIN Tenants t ON m.tenantId = t.id LEFT JOIN Rooms r ON m.roomId = r.id ORDER BY m.createdAt DESC`
-        );
-        return {
-          title: 'Maintenance Report',
-          headers: ['Title', 'Tenant', 'Room', 'Status', 'Date'],
-          rows: reqs.map(r => [
-            r.title, `${r.firstName || ''} ${r.lastName || ''}`,
-            r.roomNumber || '', r.status, new Date(r.createdAt).toLocaleDateString(),
           ]),
         };
       },

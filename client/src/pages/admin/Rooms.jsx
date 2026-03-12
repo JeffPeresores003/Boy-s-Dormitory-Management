@@ -23,7 +23,7 @@ const Rooms = () => {
   const [showAssign, setShowAssign] = useState(null);
   const [assignTenantId, setAssignTenantId] = useState('');
   const [unassignedTenants, setUnassignedTenants] = useState([]);
-  const [form, setForm] = useState({ roomNumber: '', floor: 1, capacity: 1, type: 'shared', description: '', status: 'available' });
+  const [form, setForm] = useState({ roomNumber: '', floor: 1, capacity: 1, description: '', status: 'available' });
 
   const fetchRooms = useCallback(async () => {
     try {
@@ -35,7 +35,7 @@ const Rooms = () => {
 
   useEffect(() => { fetchRooms(); }, [fetchRooms]);
 
-  const resetForm = () => { setForm({ roomNumber: '', floor: 1, capacity: 1, type: 'shared', description: '', status: 'available' }); setEditingId(null); setShowForm(false); };
+  const resetForm = () => { setForm({ roomNumber: '', floor: 1, capacity: 1, description: '', status: 'available' }); setEditingId(null); setShowForm(false); };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -53,7 +53,7 @@ const Rooms = () => {
   };
 
   const handleEdit = (room) => {
-    setForm({ roomNumber: room.roomNumber, floor: room.floor, capacity: room.capacity, type: room.type, description: room.description || '', status: room.status });
+    setForm({ roomNumber: room.roomNumber, floor: room.floor, capacity: room.capacity, description: room.description || '', status: room.status });
     setEditingId(room.id);
     setShowForm(true);
   };
@@ -134,14 +134,6 @@ const Rooms = () => {
                   <input type="number" min="1" value={form.capacity} onChange={(e) => setForm({...form, capacity: parseInt(e.target.value)})}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" required />
                 </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Type *</label>
-                  <select value={form.type} onChange={(e) => setForm({...form, type: e.target.value})}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm">
-                    <option value="single">Single</option>
-                    <option value="shared">Shared</option>
-                  </select>
-                </div>
               </div>
               {editingId && (
                 <div>
@@ -195,7 +187,6 @@ const Rooms = () => {
             <tr>
               <th className="text-left px-4 py-3 font-medium text-gray-600">Room</th>
               <th className="text-left px-4 py-3 font-medium text-gray-600">Floor</th>
-              <th className="text-left px-4 py-3 font-medium text-gray-600">Type</th>
               <th className="text-left px-4 py-3 font-medium text-gray-600">Occupancy</th>
               <th className="text-left px-4 py-3 font-medium text-gray-600">Availability</th>
               <th className="text-left px-4 py-3 font-medium text-gray-600">Status</th>
@@ -208,7 +199,6 @@ const Rooms = () => {
               <tr key={r.id} className="hover:bg-gray-50">
                 <td className="px-4 py-3 font-medium">{r.roomNumber}</td>
                 <td className="px-4 py-3">{r.floor}</td>
-                <td className="px-4 py-3 capitalize">{r.type}</td>
                 <td className="px-4 py-3">{r.occupancyCount}/{r.capacity}</td>
                 <td className="px-4 py-3">
                   <span className={`px-2 py-1 rounded-full text-xs font-medium ${
@@ -246,7 +236,7 @@ const Rooms = () => {
               </tr>
             ))}
             {rooms.length === 0 && (
-              <tr><td colSpan={8} className="px-4 py-8 text-center text-gray-400">No rooms found</td></tr>
+              <tr><td colSpan={7} className="px-4 py-8 text-center text-gray-400">No rooms found</td></tr>
             )}
           </tbody>
         </table>

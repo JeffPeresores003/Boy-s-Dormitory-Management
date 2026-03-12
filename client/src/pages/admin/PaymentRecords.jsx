@@ -10,68 +10,49 @@ const statusColors = {
   partial: 'bg-yellow-100 text-yellow-700',
 };
 
-const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+const fmtDate = (d) => {
+  if (!d) return '—';
+  return new Date(d).toLocaleDateString('en-PH', { year: 'numeric', month: 'short', day: 'numeric' });
+};
 
-const Payments = () => {
-  const now = new Date();
+const fmtMonth = (d) => {
+  if (!d) return '—';
+  return new Date(d).toLocaleDateString('en-PH', { month: 'long', year: 'numeric' });
+};
 
-  const [payments, setPayments] = useState([]);
+const PaymentRecords = () => {
+  const [records, setRecords] = useState([]);
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
+  const [monthFilter, setMonthFilter] = useState('');
   const [showBilling, setShowBilling] = useState(null);
 
-  const [showCreateModal, setShowCreateModal] = useState(false);
-  const [createYear, setCreateYear] = useState(now.getFullYear());
-  const [createMonth, setCreateMonth] = useState(now.getMonth() + 1);
-  const [creating, setCreating] = useState(false);
-
-  // Derive billing cycle label from the current payments data
-  const billingLabel = (() => {
-    if (!payments.length || !payments[0].dueDate) return null;
-    const d = new Date(payments[0].dueDate);
-    if (isNaN(d)) return null;
-    return new Date(d.getFullYear(), d.getMonth()).toLocaleDateString('en-PH', { month: 'long', year: 'numeric' });
-  })();
-
-  const fetchPayments = useCallback(async () => {
+  const fetchRecords = useCallback(async () => {
     try {
-      const res = await api.get('/payments', { params: { page, limit: 10, search, status: statusFilter } });
-      setPayments(res.data.payments);
+      const res = await api.get('/payments/records', {
+        params: { page, limit: 10, search, status: statusFilter, month: monthFilter },
+      });
+      setRecords(res.data.payments);
       setTotalPages(res.data.totalPages);
-    } catch { toast.error('Failed to load payments'); }
-  }, [page, search, statusFilter]);
+    } catch { toast.error('Failed to load payment records'); }
+  }, [page, search, statusFilter, monthFilter]);
 
-  useEffect(() => { fetchPayments(); }, [fetchPayments]);
-
-  const handleCreateBatch = async () => {
-    setCreating(true);
-    try {
-      const res = await api.post('/payments/create-batch', { year: createYear, month: createMonth });
-      toast.success(`Billing cycle created — ${res.data.created} payment(s) generated`);
-      setShowCreateModal(false);
-      fetchPayments();
-    } catch (err) {
-      toast.error(err.response?.data?.message || 'Failed to create payments');
-    } finally {
-      setCreating(false);
-    }
-  };
+  useEffect(() => { fetchRecords(); }, [fetchRecords]);
 
   const handleMarkPaid = async (payment) => {
     const remaining = parseFloat(payment.amount) - parseFloat(payment.amountPaid);
     if (remaining <= 0) { toast.error('Already fully paid'); return; }
     try {
-      await api.put(`/payments/${payment.id}/record`, { amountPaid: remaining });
+      await api.put(`/payments/records/${payment.id}/record`, { amountPaid: remaining, source: payment.source });
       toast.success('Marked as paid');
-      fetchPayments();
+      fetchRecords();
     } catch (err) { toast.error(err.response?.data?.message || 'Failed'); }
   };
 
   const handlePrintBilling = (p) => {
     const tenantName = p.tenant ? `${p.tenant.firstName} ${p.tenant.lastName}` : '—';
-    const balance = (parseFloat(p.amount) - parseFloat(p.amountPaid)).toLocaleString();
     const win = window.open('', '_blank', 'width=640,height=750');
     win.document.write(`
       <!DOCTYPE html><html><head><title>Billing Statement</title>
@@ -86,14 +67,6 @@ const Payments = () => {
         .row:last-child { border-bottom: none; }
         .label { color: #6b7280; }
         .value { font-weight: 600; text-align: right; }
-        .green { color: #16a34a; }
-        .red { color: #dc2626; }
-        .badge { padding: 2px 10px; border-radius: 999px; font-size: 12px; font-weight: 600; text-transform: capitalize;
-          background: ${
-            p.status === 'paid' ? '#dcfce7' : p.status === 'partial' ? '#fef9c3' : '#fee2e2'
-          }; color: ${
-            p.status === 'paid' ? '#15803d' : p.status === 'partial' ? '#92400e' : '#b91c1c'
-          }; }
         .footer { margin-top: 32px; font-size: 12px; color: #9ca3af; text-align: center; }
       </style></head><body>
       <div class='header'>
@@ -117,21 +90,17 @@ const Payments = () => {
 
   return (
     <div>
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Payments</h1>
-          <p className="text-sm text-gray-500 mt-1">
-            {billingLabel ? `Current billing cycle: ${billingLabel}` : 'No active billing cycle — click Create Payment to start'}
-          </p>
-        </div>
-        <button onClick={() => setShowCreateModal(true)}
-          className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 text-sm font-medium whitespace-nowrap">
-          + Create Payment
-        </button>
+      <div className="mb-6">
+        <h1 className="text-2xl font-bold text-gray-900">Payment Records</h1>
+        <p className="text-sm text-gray-500 mt-1">Full history of all payment records across all months</p>
       </div>
 
       <div className="flex flex-col sm:flex-row gap-3 mb-4">
-        <div className="flex-1"><SearchBar value={search} onChange={(v) => { setSearch(v); setPage(1); }} placeholder="Search by tenant name..." /></div>
+        <input type="month" value={monthFilter} onChange={(e) => { setMonthFilter(e.target.value); setPage(1); }}
+          className="px-3 py-2 border border-gray-300 rounded-lg text-sm" placeholder="Filter by month" />
+        <div className="flex-1">
+          <SearchBar value={search} onChange={(v) => { setSearch(v); setPage(1); }} placeholder="Search by tenant name..." />
+        </div>
         <select value={statusFilter} onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }}
           className="px-3 py-2 border border-gray-300 rounded-lg text-sm">
           <option value="">All Status</option>
@@ -140,43 +109,6 @@ const Payments = () => {
           <option value="partial">Partial</option>
         </select>
       </div>
-
-      {/* Create Payment Modal */}
-      {showCreateModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-          <div className="bg-white rounded-xl shadow-xl max-w-sm w-full mx-4 p-6">
-            <h2 className="text-lg font-semibold mb-1">Create Monthly Billing</h2>
-            <p className="text-xs text-gray-400 mb-4">Generates a payment record for every active tenant. Due date is automatically set to the last day of the selected month.</p>
-            <div className="grid grid-cols-2 gap-3 mb-5">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Month</label>
-                <select value={createMonth} onChange={e => setCreateMonth(Number(e.target.value))}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm">
-                  {MONTHS.map((m, i) => (
-                    <option key={i + 1} value={i + 1}>{m}</option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Year</label>
-                <select value={createYear} onChange={e => setCreateYear(Number(e.target.value))}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm">
-                  {[now.getFullYear() - 1, now.getFullYear(), now.getFullYear() + 1].map(y => (
-                    <option key={y} value={y}>{y}</option>
-                  ))}
-                </select>
-              </div>
-            </div>
-            <div className="flex justify-end gap-3">
-              <button onClick={() => setShowCreateModal(false)} className="px-4 py-2 text-sm text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200">Cancel</button>
-              <button onClick={handleCreateBatch} disabled={creating}
-                className="px-4 py-2 text-sm text-white bg-primary-600 rounded-lg hover:bg-primary-700 disabled:opacity-50">
-                {creating ? 'Creating...' : 'Create'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Billing Modal */}
       {showBilling && (
@@ -192,16 +124,24 @@ const Payments = () => {
                 <span className="font-medium">{showBilling.tenant ? `${showBilling.tenant.firstName} ${showBilling.tenant.lastName}` : '—'}</span>
               </div>
               <div className="flex justify-between py-2 border-b border-gray-100">
+                <span className="text-gray-500">Month</span>
+                <span>{fmtMonth(showBilling.dueDate)}</span>
+              </div>
+              <div className="flex justify-between py-2 border-b border-gray-100">
                 <span className="text-gray-500">Description</span>
                 <span>{showBilling.description || '—'}</span>
               </div>
               <div className="flex justify-between py-2 border-b border-gray-100">
                 <span className="text-gray-500">Due Date</span>
-                <span>{showBilling.dueDate}</span>
+                <span>{fmtDate(showBilling.dueDate)}</span>
               </div>
               <div className="flex justify-between py-2 border-b border-gray-100">
                 <span className="text-gray-500">Total Amount</span>
                 <span className="font-medium">₱{parseFloat(showBilling.amount).toLocaleString()}</span>
+              </div>
+              <div className="flex justify-between py-2 border-b border-gray-100">
+                <span className="text-gray-500">Status</span>
+                <span className={`px-2 py-0.5 rounded-full text-xs font-medium capitalize ${statusColors[showBilling.status]}`}>{showBilling.status}</span>
               </div>
               <div className="flex justify-between py-2 border-b border-gray-100">
                 <span className="text-gray-500">Receipt No.</span>
@@ -210,7 +150,7 @@ const Payments = () => {
               {showBilling.paymentDate && (
                 <div className="flex justify-between py-2">
                   <span className="text-gray-500">Payment Date</span>
-                  <span>{showBilling.paymentDate}</span>
+                  <span>{fmtDate(showBilling.paymentDate)}</span>
                 </div>
               )}
             </div>
@@ -225,27 +165,30 @@ const Payments = () => {
         </div>
       )}
 
-      {/* Table */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-x-auto">
         <table className="w-full text-sm">
           <thead className="bg-gray-50 border-b border-gray-200">
             <tr>
               <th className="text-left px-4 py-3 font-medium text-gray-600">Tenant</th>
+              <th className="text-left px-4 py-3 font-medium text-gray-600">Month</th>
               <th className="text-left px-4 py-3 font-medium text-gray-600">Amount</th>
               <th className="text-left px-4 py-3 font-medium text-gray-600">Status</th>
-              <th className="text-left px-4 py-3 font-medium text-gray-600 hidden lg:table-cell">Due Date</th>
+              <th className="text-left px-4 py-3 font-medium text-gray-600 hidden md:table-cell">Due Date</th>
+              <th className="text-left px-4 py-3 font-medium text-gray-600 hidden md:table-cell">Paid Date</th>
               <th className="text-left px-4 py-3 font-medium text-gray-600">Actions</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
-            {payments.map(p => (
+            {records.map(p => (
               <tr key={p.id} className="hover:bg-gray-50">
                 <td className="px-4 py-3 font-medium">{p.tenant ? `${p.tenant.firstName} ${p.tenant.lastName}` : '—'}</td>
+                <td className="px-4 py-3 text-gray-600">{fmtMonth(p.dueDate)}</td>
                 <td className="px-4 py-3">₱{parseFloat(p.amount).toLocaleString()}</td>
                 <td className="px-4 py-3">
                   <span className={`px-2 py-1 rounded-full text-xs font-medium capitalize ${statusColors[p.status]}`}>{p.status}</span>
                 </td>
-                <td className="px-4 py-3 hidden lg:table-cell">{p.dueDate}</td>
+                <td className="px-4 py-3 hidden md:table-cell text-gray-600">{fmtDate(p.dueDate)}</td>
+                <td className="px-4 py-3 hidden md:table-cell text-gray-600">{p.paymentDate ? fmtDate(p.paymentDate) : '—'}</td>
                 <td className="px-4 py-3">
                   <div className="flex gap-2">
                     <button onClick={() => setShowBilling(p)} className="px-2 py-1 text-xs font-medium text-blue-600 bg-blue-50 rounded hover:bg-blue-100">Billing</button>
@@ -256,8 +199,8 @@ const Payments = () => {
                 </td>
               </tr>
             ))}
-            {payments.length === 0 && (
-              <tr><td colSpan={5} className="px-4 py-8 text-center text-gray-400">No payments found</td></tr>
+            {records.length === 0 && (
+              <tr><td colSpan={7} className="px-4 py-8 text-center text-gray-400">No payment records found</td></tr>
             )}
           </tbody>
         </table>
@@ -268,4 +211,4 @@ const Payments = () => {
   );
 };
 
-export default Payments;
+export default PaymentRecords;

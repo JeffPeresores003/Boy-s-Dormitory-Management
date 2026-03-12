@@ -13,9 +13,8 @@ import AdminDashboard from './pages/admin/Dashboard';
 import AdminTenants from './pages/admin/Tenants';
 import AdminRooms from './pages/admin/Rooms';
 import AdminPayments from './pages/admin/Payments';
+import AdminPaymentRecords from './pages/admin/PaymentRecords';
 import AdminVisitors from './pages/admin/Visitors';
-import AdminMaintenance from './pages/admin/Maintenance';
-import AdminAnnouncements from './pages/admin/Announcements';
 import AdminReports from './pages/admin/Reports';
 
 const App = () => {
@@ -42,9 +41,8 @@ const App = () => {
         <Route path="tenants" element={<AdminTenants />} />
         <Route path="rooms" element={<AdminRooms />} />
         <Route path="payments" element={<AdminPayments />} />
+        <Route path="payment-records" element={<AdminPaymentRecords />} />
         <Route path="visitors" element={<AdminVisitors />} />
-        <Route path="maintenance" element={<AdminMaintenance />} />
-        <Route path="announcements" element={<AdminAnnouncements />} />
         <Route path="reports" element={<AdminReports />} />
       </Route>
 

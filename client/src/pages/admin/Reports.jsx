@@ -35,7 +35,6 @@ const Reports = () => {
     { value: 'tenants', label: 'Tenants Report', desc: 'List of all tenants with room assignment, type, and contact info.' },
     { value: 'rooms', label: 'Rooms Report', desc: 'Room inventory with occupancy count, capacity, availability, and current residents.' },
     { value: 'payments', label: 'Payments Report', desc: 'Payment transactions including amount, date, status, and tenant info.' },
-    { value: 'maintenance', label: 'Maintenance Report', desc: 'All maintenance requests with status, assignee, and resolution dates.' },
     { value: 'visitors', label: 'Visitors Report', desc: 'Visitor log with check-in/out times, purpose, and tenant visited.' },
   ];
 

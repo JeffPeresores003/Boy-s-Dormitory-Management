@@ -8,10 +8,10 @@ const router = express.Router();
 router.use(protect);
 router.use(authorize('admin'));
 
-// ---------------- Get All Payments ---------------- //
+// ---------------- Get Current Payments (active billing cycle) ---------------- //
 router.get("/", async (req, res) => {
   try {
-    const { page = 1, limit = 10, search = '', status = '', semester = '' } = req.query;
+    const { page = 1, limit = 10, search = '', status = '' } = req.query;
     const offset = (parseInt(page) - 1) * parseInt(limit);
 
     let whereConditions = [];
@@ -21,12 +21,8 @@ router.get("/", async (req, res) => {
       whereConditions.push("p.status = ?");
       params.push(status);
     }
-    if (semester) {
-      whereConditions.push("p.semester = ?");
-      params.push(semester);
-    }
     if (search) {
-      whereConditions.push("(t.firstName LIKE ? OR t.lastName LIKE ? OR t.tenantNumber LIKE ?)");;
+      whereConditions.push("(t.firstName LIKE ? OR t.lastName LIKE ? OR t.tenantNumber LIKE ?)");
       const searchParam = `%${search}%`;
       params.push(searchParam, searchParam, searchParam);
     }
@@ -40,7 +36,11 @@ router.get("/", async (req, res) => {
     const total = countRows[0].total;
 
     const [payments] = await pool.execute(
-      `SELECT p.*, t.id as tenantPk, t.firstName, t.lastName, t.tenantNumber, t.type as tenantType
+      `SELECT p.id, p.tenantId, p.amount, p.amountPaid, p.status, p.semester,
+              p.description, p.receiptNumber, p.paymentMethod, p.recordedBy, p.createdAt, p.updatedAt,
+              DATE_FORMAT(p.dueDate, '%Y-%m-%d') AS dueDate,
+              DATE_FORMAT(p.paymentDate, '%Y-%m-%d') AS paymentDate,
+              t.id as tenantPk, t.firstName, t.lastName, t.tenantNumber, t.type as tenantType
        FROM Payments p
        LEFT JOIN Tenants t ON p.tenantId = t.id
        ${whereClause}
@@ -60,6 +60,7 @@ router.get("/", async (req, res) => {
       semester: p.semester,
       description: p.description,
       receiptNumber: p.receiptNumber,
+      paymentMethod: p.paymentMethod,
       recordedBy: p.recordedBy,
       createdAt: p.createdAt,
       updatedAt: p.updatedAt,
@@ -88,7 +89,11 @@ router.get("/", async (req, res) => {
 router.get("/tenant/:tenantId", async (req, res) => {
   try {
     const [payments] = await pool.execute(
-      "SELECT * FROM Payments WHERE tenantId = ? ORDER BY dueDate DESC",
+      `SELECT id, tenantId, amount, amountPaid, status, semester, description, receiptNumber,
+              paymentMethod, recordedBy, createdAt, updatedAt,
+              DATE_FORMAT(dueDate, '%Y-%m-%d') AS dueDate,
+              DATE_FORMAT(paymentDate, '%Y-%m-%d') AS paymentDate
+       FROM Payments WHERE tenantId = ? ORDER BY dueDate DESC`,
       [req.params.tenantId]
     );
     res.json(payments);
@@ -98,10 +103,199 @@ router.get("/tenant/:tenantId", async (req, res) => {
   }
 });
 
+// ---------------- Get Payment Records (current cycle + historical archive) ---------------- //
+router.get("/records", async (req, res) => {
+  try {
+    const { page = 1, limit = 10, search = '', status = '', month = '' } = req.query;
+    const offset = (parseInt(page) - 1) * parseInt(limit);
+
+    let whereConditions = [];
+    let params = [];
+
+    if (status) {
+      whereConditions.push("r.status = ?");
+      params.push(status);
+    }
+    if (month) {
+      const [filterYear, filterMonth] = month.split('-');
+      whereConditions.push("YEAR(r.dueDate) = ? AND MONTH(r.dueDate) = ?");
+      params.push(parseInt(filterYear), parseInt(filterMonth));
+    }
+    if (search) {
+      whereConditions.push("(r.firstName LIKE ? OR r.lastName LIKE ? OR r.tenantNumber LIKE ?)");
+      const searchParam = `%${search}%`;
+      params.push(searchParam, searchParam, searchParam);
+    }
+
+    const whereClause = whereConditions.length > 0 ? 'WHERE ' + whereConditions.join(' AND ') : '';
+
+    // UNION current Payments (active cycle) + PaymentRecords (archived) so all history is visible
+    const unionSubquery = `(
+      SELECT pr.id, pr.tenantId, pr.amount, pr.amountPaid, pr.billingMonth,
+             DATE_FORMAT(pr.dueDate, '%Y-%m-%d') AS dueDate,
+             DATE_FORMAT(pr.paymentDate, '%Y-%m-%d') AS paymentDate,
+             pr.status, pr.description, pr.receiptNumber, pr.paymentMethod,
+             DATE_FORMAT(pr.archivedAt, '%Y-%m-%d') AS archivedAt, 'archived' AS source,
+             t.id AS tenantPk, t.firstName, t.lastName, t.tenantNumber
+      FROM PaymentRecords pr LEFT JOIN Tenants t ON pr.tenantId = t.id
+      UNION ALL
+      SELECT p.id, p.tenantId, p.amount, p.amountPaid,
+             DATE_FORMAT(p.dueDate, '%Y-%m') AS billingMonth,
+             DATE_FORMAT(p.dueDate, '%Y-%m-%d') AS dueDate,
+             DATE_FORMAT(p.paymentDate, '%Y-%m-%d') AS paymentDate,
+             p.status, p.description, p.receiptNumber, p.paymentMethod,
+             NULL AS archivedAt, 'current' AS source,
+             t.id AS tenantPk, t.firstName, t.lastName, t.tenantNumber
+      FROM Payments p LEFT JOIN Tenants t ON p.tenantId = t.id
+    )`;
+
+    const [countRows] = await pool.query(
+      `SELECT COUNT(*) as total FROM ${unionSubquery} r ${whereClause}`,
+      params
+    );
+    const total = countRows[0].total;
+
+    const [records] = await pool.query(
+      `SELECT r.* FROM ${unionSubquery} r
+       ${whereClause}
+       ORDER BY r.dueDate DESC, r.lastName ASC
+       LIMIT ${parseInt(limit)} OFFSET ${offset}`,
+      params
+    );
+
+    const formatted = records.map(r => ({
+      id: r.id,
+      tenantId: r.tenantId,
+      amount: r.amount,
+      amountPaid: r.amountPaid,
+      billingMonth: r.billingMonth,
+      dueDate: r.dueDate,
+      paymentDate: r.paymentDate,
+      status: r.status,
+      description: r.description,
+      receiptNumber: r.receiptNumber,
+      paymentMethod: r.paymentMethod,
+      archivedAt: r.archivedAt,
+      source: r.source,
+      tenant: r.tenantPk ? {
+        id: r.tenantPk, firstName: r.firstName, lastName: r.lastName, tenantNumber: r.tenantNumber,
+      } : null,
+    }));
+
+    res.json({ payments: formatted, total, page: parseInt(page), totalPages: Math.ceil(total / parseInt(limit)) });
+  } catch (error) {
+    console.error("Get payment records error:", error);
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+});
+
+// ---------------- Mark a Payment Record as Paid ---------------- //
+router.put("/records/:id/record", async (req, res) => {
+  try {
+    const { amountPaid, source } = req.body;
+    if (!amountPaid || parseFloat(amountPaid) <= 0) return res.status(400).json({ message: 'Amount paid must be positive' });
+
+    // source='current' means the record lives in Payments (active cycle); 'archived' → PaymentRecords
+    const isCurrent = source === 'current';
+    const table = isCurrent ? 'Payments' : 'PaymentRecords';
+
+    const [existing] = await pool.execute(`SELECT * FROM ${table} WHERE id = ?`, [req.params.id]);
+    if (!existing.length) return res.status(404).json({ message: 'Payment record not found' });
+
+    const payment = existing[0];
+    const newAmountPaid = parseFloat(payment.amountPaid) + parseFloat(amountPaid);
+    const totalAmount = parseFloat(payment.amount);
+    const finalAmountPaid = newAmountPaid >= totalAmount ? totalAmount : newAmountPaid;
+    const newStatus = newAmountPaid >= totalAmount ? 'paid' : 'partial';
+    const receiptNumber = payment.receiptNumber || `RCP-${Date.now()}-${isCurrent ? 'P' : 'PR'}${payment.id}`;
+
+    await pool.execute(
+      `UPDATE ${table} SET amountPaid = ?, status = ?, paymentDate = CURDATE(), recordedBy = ?, receiptNumber = ?, updatedAt = NOW() WHERE id = ?`,
+      [finalAmountPaid, newStatus, req.user.id, receiptNumber, req.params.id]
+    );
+    const [updated] = await pool.execute(`SELECT * FROM ${table} WHERE id = ?`, [req.params.id]);
+    res.json(updated[0]);
+  } catch (error) {
+    console.error("Record payment (archive) error:", error);
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+});
+
+// ---------------- Create Monthly Billing Batch ---------------- //
+// Archives the entire current Payments table into PaymentRecords,
+// then creates fresh unpaid records for every active tenant.
+router.post("/create-batch", async (req, res) => {
+  try {
+    const { year, month } = req.body;
+    if (!year || !month) return res.status(400).json({ message: 'year and month are required' });
+
+    const y = parseInt(year);
+    const m = parseInt(month);
+    const lastDay = new Date(y, m, 0).getDate();
+    const dueDate = `${y}-${String(m).padStart(2, '0')}-${lastDay}`;
+    const billingMonth = `${y}-${String(m).padStart(2, '0')}`;
+
+    // 1. Snapshot current Payments so we know each tenant's amount
+    const [currentPayments] = await pool.execute('SELECT * FROM Payments');
+    const amountMap = {};
+    currentPayments.forEach(p => { amountMap[p.tenantId] = p.amount; });
+
+    // 2. Archive current Payments → PaymentRecords
+    for (const p of currentPayments) {
+      const d = p.dueDate ? new Date(p.dueDate) : null;
+      const archiveMonth = (d && !isNaN(d))
+        ? `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+        : billingMonth;
+      await pool.execute(
+        `INSERT INTO PaymentRecords
+         (tenantId, amount, amountPaid, billingMonth, dueDate, paymentDate, status, description, semester, paymentMethod, receiptNumber, recordedBy, createdAt, updatedAt, archivedAt)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())`,
+        [p.tenantId, p.amount, p.amountPaid,
+         archiveMonth, p.dueDate, p.paymentDate, p.status,
+         p.description || 'Monthly Dormitory Fee', p.semester || '',
+         p.paymentMethod || 'cash', p.receiptNumber,
+         p.recordedBy, p.createdAt, p.updatedAt]
+      );
+    }
+
+    // 3. Delete all current Payments (clean slate)
+    await pool.execute('DELETE FROM Payments');
+
+    // 4. Create fresh unpaid records for every active tenant
+    const [tenants] = await pool.execute("SELECT id FROM Tenants WHERE status = 'active'");
+    let created = 0;
+    for (const tenant of tenants) {
+      let amount = amountMap[tenant.id];
+      if (!amount) {
+        // Fall back to PaymentRecords history
+        const [lastRecord] = await pool.execute(
+          'SELECT amount FROM PaymentRecords WHERE tenantId = ? ORDER BY archivedAt DESC LIMIT 1',
+          [tenant.id]
+        );
+        if (!lastRecord.length) continue; // No payment history at all
+        amount = lastRecord[0].amount;
+      }
+      const [result] = await pool.execute(
+        `INSERT INTO Payments (tenantId, amount, dueDate, semester, description, paymentMethod, recordedBy, createdAt, updatedAt)
+         VALUES (?, ?, ?, '', 'Monthly Dormitory Fee', 'cash', ?, NOW(), NOW())`,
+        [tenant.id, amount, dueDate, req.user.id]
+      );
+      const receiptNumber = `RCP-${Date.now()}-${result.insertId}`;
+      await pool.execute('UPDATE Payments SET receiptNumber = ? WHERE id = ?', [receiptNumber, result.insertId]);
+      created++;
+    }
+
+    res.json({ created, month: billingMonth });
+  } catch (error) {
+    console.error('Create batch error:', error);
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+});
+
 // ---------------- Create Payment ---------------- //
 router.post("/", async (req, res) => {
   try {
-    const { tenantId, amount, dueDate, semester, description } = req.body;
+    const { tenantId, amount, dueDate, semester, description, paymentMethod } = req.body;
 
     if (!tenantId || !amount || !dueDate || !semester) {
       return res.status(400).json({ message: 'Tenant, amount, due date, and semester are required' });
@@ -117,10 +311,13 @@ router.post("/", async (req, res) => {
     }
 
     const [result] = await pool.execute(
-      `INSERT INTO Payments (tenantId, amount, dueDate, semester, description, recordedBy, createdAt, updatedAt)
-       VALUES (?, ?, ?, ?, ?, ?, NOW(), NOW())`,
-      [tenantId, parseFloat(amount), dueDate, semester, description || 'Monthly Dormitory Fee', req.user.id]
+      `INSERT INTO Payments (tenantId, amount, dueDate, semester, description, paymentMethod, recordedBy, createdAt, updatedAt)
+       VALUES (?, ?, ?, ?, ?, ?, ?, NOW(), NOW())`,
+      [tenantId, parseFloat(amount), dueDate, semester || '', description || 'Monthly Dormitory Fee', paymentMethod || 'cash', req.user.id]
     );
+
+    const receiptNumber = `RCP-${Date.now()}-${result.insertId}`;
+    await pool.execute("UPDATE Payments SET receiptNumber = ? WHERE id = ?", [receiptNumber, result.insertId]);
 
     const [newPayment] = await pool.execute("SELECT * FROM Payments WHERE id = ?", [result.insertId]);
     res.status(201).json(newPayment[0]);

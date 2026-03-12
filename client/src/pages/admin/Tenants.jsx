@@ -16,9 +16,11 @@ const Tenants = () => {
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [confirmModal, setConfirmModal] = useState({ open: false, id: null });
+  const [deleteModal, setDeleteModal] = useState({ open: false, id: null, name: '' });
   const [form, setForm] = useState({
     firstName: '', lastName: '', email: '',
     contact: '', type: 'student', department: '', roomId: '', guardianName: '', guardianContact: '',
+    payAmount: '', payDescription: 'Monthly Dormitory Fee',
   });
 
   const fetchTenants = useCallback(async () => {
@@ -44,7 +46,7 @@ const Tenants = () => {
   const availableRooms = rooms.filter(r => r.status === 'available');
 
   const resetForm = () => {
-    setForm({ firstName: '', lastName: '', email: '', contact: '', type: 'student', department: '', roomId: '', guardianName: '', guardianContact: '' });
+    setForm({ firstName: '', lastName: '', email: '', contact: '', type: 'student', department: '', roomId: '', guardianName: '', guardianContact: '', payAmount: '', payDescription: 'Monthly Dormitory Fee' });
     setEditingId(null);
     setShowForm(false);
   };
@@ -52,11 +54,15 @@ const Tenants = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
+      const { payAmount, payDescription, ...tenantData } = form;
       if (editingId) {
-        await api.put(`/tenants/${editingId}`, form);
+        await api.put(`/tenants/${editingId}`, tenantData);
         toast.success('Tenant updated');
       } else {
-        await api.post('/tenants', form);
+        await api.post('/tenants', {
+          ...tenantData,
+          payment: { amount: payAmount, description: payDescription },
+        });
         toast.success('Tenant added');
       }
       resetForm();
@@ -72,6 +78,7 @@ const Tenants = () => {
       email: tenant.email, contact: tenant.contact,
       type: tenant.type, department: tenant.department || '',
       roomId: tenant.roomId || '', guardianName: tenant.guardianName || '', guardianContact: tenant.guardianContact || '',
+      payAmount: '', payDueDate: '', payDescription: 'Monthly Dormitory Fee',
     });
     setEditingId(tenant.id);
     setShowForm(true);
@@ -85,6 +92,17 @@ const Tenants = () => {
       fetchTenants();
     } catch {
       toast.error('Archive failed');
+    }
+  };
+
+  const handleDelete = async () => {
+    try {
+      await api.delete(`/tenants/${deleteModal.id}`);
+      toast.success('Tenant deleted');
+      setDeleteModal({ open: false, id: null, name: '' });
+      fetchTenants();
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Delete failed');
     }
   };
 
@@ -183,6 +201,24 @@ const Tenants = () => {
                 <input value={form.guardianContact} onChange={(e) => setForm({...form, guardianContact: e.target.value})}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" placeholder="Optional" />
               </div>
+              {!editingId && (
+                <>
+                  <div className="sm:col-span-2 border-t border-gray-200 pt-4 mt-1">
+                    <h3 className="text-sm font-semibold text-gray-800 mb-1">Initial Payment Setup</h3>
+                    <p className="text-xs text-gray-400">Creates a payment record automatically for this tenant.</p>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Amount (₱) *</label>
+                    <input type="number" min="0" step="0.01" value={form.payAmount} onChange={(e) => setForm({...form, payAmount: e.target.value})}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" required />
+                  </div>
+                  <div className="sm:col-span-2">
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
+                    <input value={form.payDescription} onChange={(e) => setForm({...form, payDescription: e.target.value})}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
+                  </div>
+                </>
+              )}
               <div className="sm:col-span-2 flex justify-end gap-3 mt-2">
                 <button type="button" onClick={resetForm} className="px-4 py-2 text-sm text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200">Cancel</button>
                 <button type="submit" className="px-4 py-2 text-sm text-white bg-primary-600 rounded-lg hover:bg-primary-700">{editingId ? 'Update' : 'Add Tenant'}</button>
@@ -227,8 +263,9 @@ const Tenants = () => {
                   <div className="flex gap-2">
                     <button onClick={() => handleEdit(t)} className="text-primary-600 hover:underline text-xs">Edit</button>
                     {t.status === 'active' && (
-                      <button onClick={() => setConfirmModal({ open: true, id: t.id })} className="text-red-600 hover:underline text-xs">Archive</button>
+                      <button onClick={() => setConfirmModal({ open: true, id: t.id })} className="text-yellow-600 hover:underline text-xs">Archive</button>
                     )}
+                    <button onClick={() => setDeleteModal({ open: true, id: t.id, name: `${t.firstName} ${t.lastName}` })} className="text-red-600 hover:underline text-xs">Delete</button>
                   </div>
                 </td>
               </tr>
@@ -243,6 +280,9 @@ const Tenants = () => {
       <Pagination page={page} totalPages={totalPages} onPageChange={setPage} />
       <ConfirmModal open={confirmModal.open} title="Archive Tenant" message="Are you sure you want to archive this tenant? They will be removed from their room."
         onConfirm={handleArchive} onCancel={() => setConfirmModal({ open: false, id: null })} />
+      <ConfirmModal open={deleteModal.open} title="Delete Tenant"
+        message={`Permanently delete ${deleteModal.name}? This will also delete all their payment records and cannot be undone.`}
+        onConfirm={handleDelete} onCancel={() => setDeleteModal({ open: false, id: null, name: '' })} />
     </div>
   );
 };
