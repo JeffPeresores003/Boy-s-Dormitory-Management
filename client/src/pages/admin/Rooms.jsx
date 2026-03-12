@@ -23,6 +23,7 @@ const Rooms = () => {
   const [showAssign, setShowAssign] = useState(null);
   const [assignTenantId, setAssignTenantId] = useState('');
   const [unassignedTenants, setUnassignedTenants] = useState([]);
+  const [showOccupants, setShowOccupants] = useState(null);
   const [form, setForm] = useState({ roomNumber: '', floor: 1, capacity: 1, description: '', status: 'available' });
 
   const fetchRooms = useCallback(async () => {
@@ -180,6 +181,63 @@ const Rooms = () => {
         </div>
       )}
 
+      {/* Occupants Modal */}
+      {showOccupants && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <div className="bg-white rounded-xl shadow-xl max-w-2xl w-full mx-4 p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-semibold">Occupants in Room {showOccupants.roomNumber}</h2>
+              <button onClick={() => setShowOccupants(null)} className="text-gray-400 hover:text-gray-600">
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            <div className="space-y-3">
+              {showOccupants.occupants && showOccupants.occupants.length > 0 ? (
+                <div className="border border-gray-200 rounded-lg overflow-hidden">
+                  <table className="w-full text-sm">
+                    <thead className="bg-gray-50 border-b border-gray-200">
+                      <tr>
+                        <th className="text-left px-4 py-3 font-medium text-gray-600">Tenant Number</th>
+                        <th className="text-left px-4 py-3 font-medium text-gray-600">Name</th>
+                        <th className="text-left px-4 py-3 font-medium text-gray-600">Type</th>
+                        <th className="text-left px-4 py-3 font-medium text-gray-600">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100">
+                      {showOccupants.occupants.map(o => (
+                        <tr key={o.id} className="hover:bg-gray-50">
+                          <td className="px-4 py-3">{o.tenantNumber}</td>
+                          <td className="px-4 py-3">{o.firstName} {o.lastName}</td>
+                          <td className="px-4 py-3">
+                            <span className="px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-700 capitalize">
+                              {o.type}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3">
+                            <button onClick={() => { handleRemove(showOccupants.id, o.id); setShowOccupants(null); }} className="text-red-600 hover:underline text-xs">
+                              Remove
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <div className="text-center py-8 text-gray-400">No occupants in this room</div>
+              )}
+            </div>
+            <div className="flex justify-end mt-6">
+              <button onClick={() => setShowOccupants(null)} className="px-4 py-2 text-sm text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200">
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Table */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-x-auto">
         <table className="w-full text-sm">
@@ -214,15 +272,15 @@ const Rooms = () => {
                 </td>
                 <td className="px-4 py-3">
                   {r.occupants && r.occupants.length > 0 ? (
-                    <div className="space-y-1">
-                      {r.occupants.map(o => (
-                        <div key={o.id} className="flex items-center gap-2 text-xs">
-                          <span>{o.firstName} {o.lastName} <span className="text-gray-400">({o.type})</span></span>
-                          <button onClick={() => handleRemove(r.id, o.id)} className="text-red-500 hover:underline">Remove</button>
-                        </div>
-                      ))}
-                    </div>
-                  ) : <span className="text-gray-400">—</span>}
+                    <button
+                      onClick={() => setShowOccupants(r)}
+                      className="px-3 py-1 text-xs font-medium text-primary-600 bg-primary-50 rounded-lg hover:bg-primary-100 transition-colors"
+                    >
+                      View ({r.occupants.length})
+                    </button>
+                  ) : (
+                    <span className="text-gray-400">No occupants</span>
+                  )}
                 </td>
                 <td className="px-4 py-3">
                   <div className="flex gap-2">
