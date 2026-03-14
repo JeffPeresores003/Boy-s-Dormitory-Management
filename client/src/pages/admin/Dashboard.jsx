@@ -14,6 +14,7 @@ import {
 } from 'react-icons/hi';
 import AdminPageHeader from '../../components/AdminPageHeader';
 import SectionLoader from '../../components/SectionLoader';
+import TenantTypeChartCard from '../../components/dashboard/TenantTypeChartCard';
 
 const DashboardCharts = lazy(() => import('../../components/dashboard/DashboardCharts'));
 
@@ -268,7 +269,6 @@ const AdminDashboard = () => {
             <DashboardCharts
               revenueChartData={revenueChartData}
               roomPieData={roomPieData}
-              tenantBarData={tenantBarData}
               stats={stats}
               colors={COLORS}
               formatCurrency={fmt}
@@ -277,7 +277,9 @@ const AdminDashboard = () => {
         </section>
       )}
 
-      <section className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+      <section className="grid grid-cols-1 xl:grid-cols-3 gap-6">
+        <TenantTypeChartCard tenantBarData={tenantBarData} totalTenants={stats?.totalTenants || 0} />
+
         <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5">
           <div className="flex items-center justify-between mb-4">
             <div>
