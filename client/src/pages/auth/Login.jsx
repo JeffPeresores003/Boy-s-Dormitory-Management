@@ -23,6 +23,36 @@ const Login = () => {
   const [showWelcome, setShowWelcome] = useState(false);
   const { login } = useAuth();
   const navigate = useNavigate();
+  const emailRef = useRef(null);
+  const passwordRef = useRef(null);
+  const errorSummaryRef = useRef(null);
+
+  const validate = () => {
+    const nextErrors = { email: '', password: '' };
+    const normalizedEmail = email.trim();
+
+    if (!normalizedEmail) {
+      nextErrors.email = 'Enter your email address.';
+    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) {
+      nextErrors.email = 'Enter a valid email format, such as name@example.com.';
+    }
+
+    if (!password) {
+      nextErrors.password = 'Enter your password.';
+    }
+
+    return nextErrors;
+  };
+
+  const focusFirstInvalid = (nextErrors) => {
+    if (nextErrors.email) {
+      emailRef.current?.focus();
+      return;
+    }
+    if (nextErrors.password) {
+      passwordRef.current?.focus();
+    }
+  };
 
   useEffect(() => {
     localStorage.setItem('loginEmail', email);
@@ -30,17 +60,28 @@ const Login = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!email || !password) {
-      toast.error('Please enter both your email address and password.');
+    if (loading) return;
+
+    const nextErrors = validate();
+    setErrors(nextErrors);
+    setFormError('');
+
+    if (nextErrors.email || nextErrors.password) {
+      if (nextErrors.email && nextErrors.password) {
+        errorSummaryRef.current?.focus();
+      }
+      focusFirstInvalid(nextErrors);
       return;
     }
+
     setLoading(true);
     try {
-      await login(email, password);
+      await login(email.trim(), password);
       toast.success('Signed in successfully.');
       navigate('/welcome');
     } catch (err) {
-      toast.error(err.response?.data?.message || 'Unable to sign in.');
+      const message = err.response?.data?.message || 'Unable to sign in.';
+      setFormError(message);
     } finally {
       setLoading(false);
     }

@@ -1,11 +1,16 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, lazy, Suspense, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import api from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
 import {
-  HiOutlineUserGroup, HiOutlineOfficeBuilding, HiOutlineCash,
-  HiOutlineClipboardList, HiOutlineTrendingUp, HiOutlineHome,
-  HiOutlineExclamationCircle, HiOutlineCheckCircle,
+  HiOutlineUserGroup,
+  HiOutlineOfficeBuilding,
+  HiOutlineCash,
+  HiOutlineClipboardList,
+  HiOutlineTrendingUp,
+  HiOutlineHome,
+  HiOutlineExclamationCircle,
+  HiOutlineCheckCircle,
 } from 'react-icons/hi';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
@@ -14,8 +19,27 @@ import {
 import SkeletonDashboard from '../../shared/SkeletonDashboard';
 
 const COLORS = ['#16a34a', '#ef4444', '#f59e0b', '#8b5cf6', '#2563eb'];
+const DASHBOARD_STATS_CACHE_KEY = 'admin_dashboard_stats_cache_v1';
+const DASHBOARD_REVENUE_CACHE_KEY = 'admin_dashboard_revenue_cache_v1';
+const DASHBOARD_TENANTS_CACHE_KEY = 'admin_dashboard_tenants_cache_v1';
+const DASHBOARD_VISITORS_CACHE_KEY = 'admin_dashboard_visitors_cache_v1';
 
-const fmt = (n) => new Intl.NumberFormat('en-PH', { style: 'currency', currency: 'PHP', maximumFractionDigits: 0 }).format(n);
+const currencyFormatter = new Intl.NumberFormat('en-PH', {
+  style: 'currency',
+  currency: 'PHP',
+  maximumFractionDigits: 0,
+});
+
+const fmt = (n) => currencyFormatter.format(n || 0);
+
+const getCached = (key, fallback) => {
+  try {
+    const raw = sessionStorage.getItem(key);
+    return raw ? JSON.parse(raw) : fallback;
+  } catch {
+    return fallback;
+  }
+};
 
 const StatCard = ({ icon: Icon, label, value, sub, color, to }) => {
   const inner = (
@@ -32,6 +56,7 @@ const StatCard = ({ icon: Icon, label, value, sub, color, to }) => {
       </div>
     </div>
   );
+
   return to ? <Link to={to}>{inner}</Link> : inner;
 };
 
@@ -43,6 +68,7 @@ const Badge = ({ status }) => {
     staff: 'bg-purple-100 text-purple-700',
     faculty: 'bg-indigo-100 text-indigo-700',
   };
+
   return (
     <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium capitalize ${map[status] || 'bg-gray-100 text-gray-600'}`}>
       {status}
@@ -52,225 +78,235 @@ const Badge = ({ status }) => {
 
 const AdminDashboard = () => {
   const { user } = useAuth();
-  const [stats, setStats]               = useState(null);
-  const [revenue, setRevenue]           = useState([]);
-  const [recentTenants, setRecentTenants] = useState([]);
-  const [recentVisitors, setRecentVisitors] = useState([]);
-  const [loading, setLoading]           = useState(true);
+
+  const cachedStats = getCached(DASHBOARD_STATS_CACHE_KEY, null);
+  const cachedRevenue = getCached(DASHBOARD_REVENUE_CACHE_KEY, []);
+  const cachedTenants = getCached(DASHBOARD_TENANTS_CACHE_KEY, []);
+  const cachedVisitors = getCached(DASHBOARD_VISITORS_CACHE_KEY, []);
+  const hasCachedAnalytics =
+    cachedRevenue.length > 0 || cachedTenants.length > 0 || cachedVisitors.length > 0;
+
+  const [stats, setStats] = useState(cachedStats);
+  const [revenue, setRevenue] = useState(cachedRevenue);
+  const [recentTenants, setRecentTenants] = useState(cachedTenants);
+  const [recentVisitors, setRecentVisitors] = useState(cachedVisitors);
+  const [loadingStats, setLoadingStats] = useState(!cachedStats);
+  const [analyticsLoading, setAnalyticsLoading] = useState(!hasCachedAnalytics);
 
   useEffect(() => {
-    const load = async () => {
+    let active = true;
+
+    const loadStats = async () => {
       try {
-        const [statsRes, revRes, tenRes, visRes] = await Promise.all([
-          api.get('/dashboard/stats'),
-          api.get('/dashboard/analytics/monthly-revenue'),
-          api.get('/dashboard/analytics/recent-tenants'),
-          api.get('/dashboard/analytics/recent-visitors'),
-        ]);
+        const statsRes = await api.get('/dashboard/stats');
+        if (!active) return;
         setStats(statsRes.data);
-        setRevenue(revRes.data);
-        setRecentTenants(tenRes.data);
-        setRecentVisitors(visRes.data);
+        sessionStorage.setItem(DASHBOARD_STATS_CACHE_KEY, JSON.stringify(statsRes.data));
+
+        // Preload chart chunk so analytics section appears immediately once visible.
+        loadDashboardCharts();
       } catch (err) {
-        console.error('Dashboard load error:', err);
+        console.error('Dashboard stats load error:', err);
       } finally {
-        setLoading(false);
+        if (!active) return;
+        setLoadingStats(false);
       }
     };
-    load();
+
+    const loadAnalytics = async () => {
+      if (!hasCachedAnalytics) {
+        setAnalyticsLoading(true);
+      }
+
+      const [revRes, tenRes, visRes] = await Promise.allSettled([
+        api.get('/dashboard/analytics/monthly-revenue'),
+        api.get('/dashboard/analytics/recent-tenants'),
+        api.get('/dashboard/analytics/recent-visitors'),
+      ]);
+
+      if (!active) return;
+
+      const revenueData = revRes.status === 'fulfilled' ? revRes.value.data : [];
+      const tenantsData = tenRes.status === 'fulfilled' ? tenRes.value.data : [];
+      const visitorsData = visRes.status === 'fulfilled' ? visRes.value.data : [];
+
+      setRevenue(revenueData);
+      setRecentTenants(tenantsData);
+      setRecentVisitors(visitorsData);
+
+      sessionStorage.setItem(DASHBOARD_REVENUE_CACHE_KEY, JSON.stringify(revenueData));
+      sessionStorage.setItem(DASHBOARD_TENANTS_CACHE_KEY, JSON.stringify(tenantsData));
+      sessionStorage.setItem(DASHBOARD_VISITORS_CACHE_KEY, JSON.stringify(visitorsData));
+
+      setAnalyticsLoading(false);
+    };
+
+    loadStats();
+    loadAnalytics();
+
+    return () => {
+      active = false;
+    };
   }, []);
 
   if (loading) {
     return <SkeletonDashboard />;
   }
 
-  if (!stats) {
-    return (
-      <div className="flex flex-col items-center justify-center h-64 gap-3 text-gray-500">
-        <HiOutlineExclamationCircle className="w-10 h-10 text-red-400" />
-        <p>Unable to load dashboard data.</p>
-      </div>
-    );
-  }
+  const tenantBarData = useMemo(
+    () => [
+      { name: 'Students', count: stats?.totalStudents || 0 },
+      { name: 'Staff', count: stats?.totalStaff || 0 },
+      { name: 'Faculty', count: stats?.totalFaculty || 0 },
+    ],
+    [stats]
+  );
 
-  const roomPieData = [
-    { name: 'Available', value: stats.availableRooms },
-    { name: 'Full',      value: stats.fullRooms },
-    { name: 'Maintenance', value: stats.maintenanceRooms },
-  ].filter(d => d.value > 0);
-
-  const tenantBarData = [
-    { name: 'Students', count: stats.totalStudents },
-    { name: 'Staff',    count: stats.totalStaff },
-    { name: 'Faculty',  count: stats.totalFaculty },
-  ];
-
-  const revenueChartData = revenue.map(r => ({
-    label: r.label,
-    Revenue: parseFloat(r.revenue),
-  }));
+  const revenueChartData = useMemo(
+    () =>
+      revenue.map((r) => ({
+        label: r.label,
+        Revenue: parseFloat(r.revenue),
+      })),
+    [revenue]
+  );
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="rounded-2xl border border-slate-700/50 bg-slate-900/45 px-5 py-4 md:px-6">
-        <h1 className="text-3xl font-bold text-slate-100">Welcome back, {user?.name || 'Admin'}</h1>
-        <p className="text-sm text-slate-400 mt-1">Administrative overview for the BISU Boy&apos;s Dormitory.</p>
-      </div>
+      <AdminPageHeader
+        title={`Welcome back, ${user?.name || 'Admin'}`}
+        subtitle="Administrative overview for the BISU Boy's Dormitory."
+        className="md:px-6"
+      />
 
-      {/* Primary KPIs */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
-        <StatCard
-          icon={HiOutlineUserGroup}
-          label="Active Tenants"
-          value={stats.totalTenants}
-          sub={`${stats.totalCapacity} total bed capacity`}
-          color="bg-primary-600"
-          to="/admin/tenants"
-        />
-        <StatCard
-          icon={HiOutlineHome}
-          label="Occupancy Rate"
-          value={`${stats.occupancyRate}%`}
-          sub={`${stats.availableRooms} rooms currently available`}
-          color={stats.occupancyRate >= 90 ? 'bg-red-500' : stats.occupancyRate >= 70 ? 'bg-yellow-500' : 'bg-green-600'}
-        />
-        <StatCard
-          icon={HiOutlineCash}
-          label="Total Collected"
-          value={fmt(stats.totalCollected)}
-          sub={`${stats.collectionRate}% collection efficiency`}
-          color="bg-emerald-600"
-          to="/admin/payments"
-        />
-        <StatCard
-          icon={HiOutlineClipboardList}
-          label="Today's Visitors"
-          value={stats.todayVisitors}
-          sub="visitor entries recorded today"
-          color="bg-violet-600"
-          to="/admin/visitors"
-        />
-      </div>
-
-      {/* Secondary KPIs */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
-        <StatCard
-          icon={HiOutlineOfficeBuilding}
-          label="Total Rooms"
-          value={stats.totalRooms}
-          sub={`${stats.fullRooms} fully occupied · ${stats.maintenanceRooms} under maintenance`}
-          color="bg-slate-600"
-          to="/admin/rooms"
-        />
-        <StatCard
-          icon={HiOutlineExclamationCircle}
-          label="Unpaid Bills"
-          value={stats.pendingPayments}
-          sub={`${stats.partialPayments} partially settled`}
-          color="bg-red-500"
-          to="/admin/payments"
-        />
-        <StatCard
-          icon={HiOutlineTrendingUp}
-          label="Outstanding Balance"
-          value={fmt(stats.totalBalance)}
-          sub="total outstanding balance"
-          color="bg-orange-500"
-          to="/admin/payments"
-        />
-        <StatCard
-          icon={HiOutlineCheckCircle}
-          label="Total Billed"
-          value={fmt(stats.totalBilled)}
-          sub="across all billing periods"
-          color="bg-cyan-600"
-          to="/admin/reports"
-        />
-      </div>
-
-      {/* Charts Row */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Monthly Revenue */}
-        <div className="lg:col-span-2 bg-white rounded-xl shadow-sm border border-gray-100 p-5">
-          <h3 className="text-base font-semibold text-gray-800 mb-1">Monthly Revenue</h3>
-          <p className="text-xs text-gray-400 mb-4">Total collections for the past six months</p>
-          {revenueChartData.length > 0 ? (
-            <ResponsiveContainer width="100%" height={220}>
-              <BarChart data={revenueChartData} margin={{ top: 4, right: 8, bottom: 0, left: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                <XAxis dataKey="label" tick={{ fontSize: 11 }} />
-                <YAxis tick={{ fontSize: 11 }} tickFormatter={(v) => `₱${(v/1000).toFixed(0)}k`} />
-                <Tooltip formatter={(v) => [fmt(v), 'Revenue']} />
-                <Bar dataKey="Revenue" fill="#2563eb" radius={[6, 6, 0, 0]} maxBarSize={48} />
-              </BarChart>
-            </ResponsiveContainer>
-          ) : (
-            <div className="flex items-center justify-center h-48 text-sm text-gray-400">No payment data available yet.</div>
-          )}
+      <section className="space-y-4">
+        <div className="flex items-center justify-between">
+          <h2 className="text-sm font-semibold uppercase tracking-[0.12em] text-slate-400">Core Metrics</h2>
         </div>
 
-        {/* Room Status Donut */}
+        {loadingStats && !stats ? (
+          <SectionLoader title="Loading Core Metrics" subtitle="Gathering occupancy, tenant, and billing indicators." />
+        ) : stats ? (
+          <>
+            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+              <StatCard
+                icon={HiOutlineUserGroup}
+                label="Active Tenants"
+                value={stats.totalTenants}
+                sub={`${stats.totalCapacity} total bed capacity`}
+                color="bg-primary-600"
+                to="/admin/tenants"
+              />
+              <StatCard
+                icon={HiOutlineHome}
+                label="Occupancy Rate"
+                value={`${stats.occupancyRate}%`}
+                sub={`${stats.availableRooms} rooms currently available`}
+                color={
+                  stats.occupancyRate >= 90
+                    ? 'bg-red-500'
+                    : stats.occupancyRate >= 70
+                      ? 'bg-yellow-500'
+                      : 'bg-green-600'
+                }
+              />
+              <StatCard
+                icon={HiOutlineCash}
+                label="Total Collected"
+                value={fmt(stats.totalCollected)}
+                sub={`${stats.collectionRate}% collection efficiency`}
+                color="bg-emerald-600"
+                to="/admin/payments"
+              />
+              <StatCard
+                icon={HiOutlineClipboardList}
+                label="Today's Visitors"
+                value={stats.todayVisitors}
+                sub="visitor entries recorded today"
+                color="bg-violet-600"
+                to="/admin/visitors"
+              />
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+              <StatCard
+                icon={HiOutlineOfficeBuilding}
+                label="Total Rooms"
+                value={stats.totalRooms}
+                sub={`${stats.fullRooms} fully occupied · ${stats.maintenanceRooms} under maintenance`}
+                color="bg-slate-600"
+                to="/admin/rooms"
+              />
+              <StatCard
+                icon={HiOutlineExclamationCircle}
+                label="Unpaid Bills"
+                value={stats.pendingPayments}
+                sub={`${stats.partialPayments} partially settled`}
+                color="bg-red-500"
+                to="/admin/payments"
+              />
+              <StatCard
+                icon={HiOutlineTrendingUp}
+                label="Outstanding Balance"
+                value={fmt(stats.totalBalance)}
+                sub="total outstanding balance"
+                color="bg-orange-500"
+                to="/admin/payments"
+              />
+              <StatCard
+                icon={HiOutlineCheckCircle}
+                label="Total Billed"
+                value={fmt(stats.totalBilled)}
+                sub="across all billing periods"
+                color="bg-cyan-600"
+                to="/admin/reports"
+              />
+            </div>
+          </>
+        ) : (
+          <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 text-center text-slate-500">
+            Unable to load dashboard metrics at this time.
+          </div>
+        )}
+      </section>
+
+      {stats && (
+        <section className="space-y-4">
+          <div className="flex items-center justify-between">
+            <h2 className="text-sm font-semibold uppercase tracking-[0.12em] text-slate-400">Operational Analytics</h2>
+          </div>
+
+          <Suspense fallback={<SectionLoader title="Loading Analytics" subtitle="Preparing chart visualizations and trends." />}>
+            <DashboardCharts
+              revenueChartData={revenueChartData}
+              roomPieData={roomPieData}
+              stats={stats}
+              colors={COLORS}
+              formatCurrency={fmt}
+            />
+          </Suspense>
+        </section>
+      )}
+
+      <section className="grid grid-cols-1 xl:grid-cols-3 gap-6">
+        <TenantTypeChartCard tenantBarData={tenantBarData} totalTenants={stats?.totalTenants || 0} />
+
         <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5">
-          <h3 className="text-base font-semibold text-gray-800 mb-1">Room Status</h3>
-          <p className="text-xs text-gray-400 mb-4">{stats.totalRooms} rooms in the system</p>
-          {roomPieData.length > 0 ? (
-            <ResponsiveContainer width="100%" height={220}>
-              <PieChart>
-                <Pie
-                  data={roomPieData}
-                  cx="50%" cy="45%"
-                  innerRadius={58} outerRadius={88}
-                  paddingAngle={4}
-                  dataKey="value"
-                >
-                  {roomPieData.map((_, i) => (
-                    <Cell key={i} fill={COLORS[i % COLORS.length]} />
-                  ))}
-                </Pie>
-                <Tooltip formatter={(v, n) => [v, n]} />
-                <Legend iconSize={10} iconType="circle" wrapperStyle={{ fontSize: 12 }} />
-              </PieChart>
-            </ResponsiveContainer>
-          ) : (
-            <div className="flex items-center justify-center h-48 text-sm text-gray-400">No rooms have been added yet.</div>
-          )}
-        </div>
-      </div>
-
-      {/* Tenant Breakdown + Recent Visitors */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Tenant Types Bar */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5">
-          <h3 className="text-base font-semibold text-gray-800 mb-1">Tenants by Type</h3>
-          <p className="text-xs text-gray-400 mb-4">{stats.totalTenants} tenants currently active</p>
-          <ResponsiveContainer width="100%" height={180}>
-            <BarChart data={tenantBarData} layout="vertical" margin={{ left: 10 }}>
-              <CartesianGrid strokeDasharray="3 3" horizontal={false} />
-              <XAxis type="number" tick={{ fontSize: 11 }} allowDecimals={false} />
-              <YAxis dataKey="name" type="category" tick={{ fontSize: 12 }} width={60} />
-              <Tooltip />
-              <Bar dataKey="count" radius={[0, 6, 6, 0]} maxBarSize={28}>
-                {tenantBarData.map((_, i) => (
-                  <Cell key={i} fill={['#3b82f6', '#8b5cf6', '#6366f1'][i % 3]} />
-                ))}
-              </Bar>
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
-
-        {/* Recent Visitors */}
-        <div className="lg:col-span-2 bg-white rounded-xl shadow-sm border border-gray-100 p-5">
           <div className="flex items-center justify-between mb-4">
             <div>
               <h3 className="text-base font-semibold text-gray-800">Recent Visitors</h3>
               <p className="text-xs text-gray-400">Most recent visitor log entries</p>
             </div>
-            <Link to="/admin/visitors" className="text-xs text-primary-600 hover:underline font-medium">View all</Link>
+            <Link to="/admin/visitors" className="text-xs text-primary-600 hover:underline font-medium">
+              View all
+            </Link>
           </div>
-          {recentVisitors.length > 0 ? (
+
+          {analyticsLoading ? (
+            <SectionLoader compact title="Loading Visitor Activity" subtitle="Collecting latest visitor logs." />
+          ) : recentVisitors.length > 0 ? (
             <div className="space-y-3">
-              {recentVisitors.map(v => (
+              {recentVisitors.map((v) => (
                 <div key={v.id} className="flex items-center justify-between text-sm border-b border-gray-50 pb-2 last:border-0 last:pb-0">
                   <div className="min-w-0">
                     <p className="font-medium text-gray-800 truncate">{v.visitorName}</p>
@@ -280,10 +316,11 @@ const AdminDashboard = () => {
                   </div>
                   <div className="text-right ml-4 flex-shrink-0">
                     <p className="text-xs text-gray-500">{new Date(v.timeIn).toLocaleDateString()}</p>
-                    {v.timeOut
-                      ? <span className="text-xs text-gray-400">Checked out</span>
-                      : <span className="text-xs text-green-600 font-medium">Currently on site</span>
-                    }
+                    {v.timeOut ? (
+                      <span className="text-xs text-gray-400">Checked out</span>
+                    ) : (
+                      <span className="text-xs text-green-600 font-medium">Currently on site</span>
+                    )}
                   </div>
                 </div>
               ))}
@@ -292,46 +329,50 @@ const AdminDashboard = () => {
             <p className="text-sm text-gray-400 text-center py-6">No visitor activity has been recorded yet.</p>
           )}
         </div>
-      </div>
 
-      {/* Recent Tenants */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5">
-        <div className="flex items-center justify-between mb-4">
-          <div>
-            <h3 className="text-base font-semibold text-gray-800">Recently Registered Tenants</h3>
-            <p className="text-xs text-gray-400">The five most recently added tenant records</p>
+        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h3 className="text-base font-semibold text-gray-800">Recently Registered Tenants</h3>
+              <p className="text-xs text-gray-400">The five most recently added tenant records</p>
+            </div>
+            <Link to="/admin/tenants" className="text-xs text-primary-600 hover:underline font-medium">
+              View all
+            </Link>
           </div>
-          <Link to="/admin/tenants" className="text-xs text-primary-600 hover:underline font-medium">View all</Link>
-        </div>
-        {recentTenants.length > 0 ? (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-gray-100">
-                  <th className="text-left text-xs text-gray-500 font-medium pb-2 pr-4">ID Number</th>
-                  <th className="text-left text-xs text-gray-500 font-medium pb-2 pr-4">Name</th>
-                  <th className="text-left text-xs text-gray-500 font-medium pb-2 pr-4">Type</th>
-                  <th className="text-left text-xs text-gray-500 font-medium pb-2 pr-4">Room</th>
-                  <th className="text-left text-xs text-gray-500 font-medium pb-2">Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                {recentTenants.map(t => (
-                  <tr key={t.id} className="border-b border-gray-50 last:border-0">
-                    <td className="py-2 pr-4 text-gray-500 font-mono text-xs">{t.tenantNumber}</td>
-                    <td className="py-2 pr-4 font-medium text-gray-800">{t.firstName} {t.lastName}</td>
-                    <td className="py-2 pr-4"><Badge status={t.type} /></td>
-                    <td className="py-2 pr-4 text-gray-500">{t.roomNumber || <span className="text-gray-300">—</span>}</td>
-                    <td className="py-2"><Badge status={t.status} /></td>
+
+          {analyticsLoading ? (
+            <SectionLoader compact title="Loading Tenant Activity" subtitle="Retrieving most recent tenant registrations." />
+          ) : recentTenants.length > 0 ? (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-gray-100">
+                    <th className="text-left text-xs text-gray-500 font-medium pb-2 pr-4">ID Number</th>
+                    <th className="text-left text-xs text-gray-500 font-medium pb-2 pr-4">Name</th>
+                    <th className="text-left text-xs text-gray-500 font-medium pb-2 pr-4">Type</th>
+                    <th className="text-left text-xs text-gray-500 font-medium pb-2 pr-4">Room</th>
+                    <th className="text-left text-xs text-gray-500 font-medium pb-2">Status</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        ) : (
-          <p className="text-sm text-gray-400 text-center py-6">No tenants have been registered yet.</p>
-        )}
-      </div>
+                </thead>
+                <tbody>
+                  {recentTenants.map((t) => (
+                    <tr key={t.id} className="border-b border-gray-50 last:border-0">
+                      <td className="py-2 pr-4 text-gray-500 font-mono text-xs">{t.tenantNumber}</td>
+                      <td className="py-2 pr-4 font-medium text-gray-800">{t.firstName} {t.lastName}</td>
+                      <td className="py-2 pr-4"><Badge status={t.type} /></td>
+                      <td className="py-2 pr-4 text-gray-500">{t.roomNumber || <span className="text-gray-300">—</span>}</td>
+                      <td className="py-2"><Badge status={t.status} /></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <p className="text-sm text-gray-400 text-center py-6">No tenants have been registered yet.</p>
+          )}
+        </div>
+      </section>
     </div>
   );
 };

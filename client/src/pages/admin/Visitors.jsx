@@ -8,6 +8,7 @@ import SkeletonList from '../../shared/SkeletonList';
 
 const Visitors = () => {
   const [visitors, setVisitors] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [search, setSearch] = useState('');
@@ -19,11 +20,13 @@ const Visitors = () => {
   const [loading, setLoading] = useState(true);
 
   const fetchVisitors = useCallback(async () => {
+    setLoading(true);
     try {
       const res = await api.get('/visitors', { params: { page, limit: 10, search, date: dateFilter } });
       setVisitors(res.data.visitors);
       setTotalPages(res.data.totalPages);
     } catch { toast.error('Unable to load visitor records.'); }
+    finally { setLoading(false); }
   }, [page, search, dateFilter]);
 
   useEffect(() => {
@@ -71,13 +74,11 @@ const Visitors = () => {
 
   return (
     <div>
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6 rounded-2xl border border-slate-700/50 bg-slate-900/45 px-5 py-4">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-100">Visitor Log</h1>
-          <p className="text-sm text-slate-400">Monitor visitor check-in and check-out activity.</p>
-        </div>
-        <button onClick={openCreate} className="px-4 py-2 bg-emerald-500 text-white rounded-lg hover:bg-emerald-600 text-sm font-medium transition-colors">+ Add Visitor Entry</button>
-      </div>
+      <AdminPageHeader
+        title="Visitor Log"
+        subtitle="Monitor visitor check-in and check-out activity."
+        actions={<ActionButton variant="success" onClick={openCreate}>+ Add Visitor Entry</ActionButton>}
+      />
 
       <div className="flex flex-col sm:flex-row gap-3 mb-4">
         <div className="flex-1"><SearchBar value={search} onChange={(v) => { setSearch(v); setPage(1); }} placeholder="Search visitor records..." /></div>
@@ -110,8 +111,8 @@ const Visitors = () => {
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" required />
               </div>
               <div className="flex justify-end gap-3">
-                <button type="button" onClick={() => setShowForm(false)} className="px-4 py-2 text-sm text-slate-200 bg-slate-800 rounded-lg hover:bg-slate-700">Cancel</button>
-                <button type="submit" className="px-4 py-2 text-sm text-white bg-primary-600 rounded-lg hover:bg-primary-700">Save Entry</button>
+                <ActionButton type="button" variant="neutral" onClick={() => setShowForm(false)}>Cancel</ActionButton>
+                <ActionButton type="submit">Save Entry</ActionButton>
               </div>
             </form>
           </div>

@@ -19,12 +19,26 @@ router.post("/login", async (req, res) => {
     const user = rows[0] && rows[0].length > 0 ? rows[0][0] : null;
 
     if (!user) {
-      return res.status(401).json({ message: 'Invalid email or password' });
+      // Determine whether the submitted password matches any existing account.
+      // If it matches another account, only the email is invalid.
+      const [passwordRows] = await pool.execute('SELECT password FROM Users');
+      let passwordExists = false;
+
+      for (const row of passwordRows) {
+        if (await bcrypt.compare(password, row.password)) {
+          passwordExists = true;
+          break;
+        }
+      }
+
+      return res.status(401).json({
+        message: passwordExists ? 'Incorrect Email' : 'Both email and password are incorrect',
+      });
     }
 
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) {
-      return res.status(401).json({ message: 'Invalid email or password' });
+      return res.status(401).json({ message: 'Incorrect Password' });
     }
 
     const token = jwt.sign(

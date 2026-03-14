@@ -23,6 +23,7 @@ const fmtMonth = (d) => {
 
 const PaymentRecords = () => {
   const [records, setRecords] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [search, setSearch] = useState('');
@@ -32,6 +33,7 @@ const PaymentRecords = () => {
   const [loading, setLoading] = useState(true);
 
   const fetchRecords = useCallback(async () => {
+    setLoading(true);
     try {
       const res = await api.get('/payments/records', {
         params: { page, limit: 10, search, status: statusFilter, month: monthFilter },
@@ -39,6 +41,7 @@ const PaymentRecords = () => {
       setRecords(res.data.payments);
       setTotalPages(res.data.totalPages);
     } catch { toast.error('Unable to load payment history.'); }
+    finally { setLoading(false); }
   }, [page, search, statusFilter, monthFilter]);
 
   useEffect(() => {
@@ -95,10 +98,10 @@ const PaymentRecords = () => {
 
   return (
     <div>
-      <div className="mb-6 rounded-2xl border border-slate-700/50 bg-slate-900/45 px-5 py-4">
-        <h1 className="text-2xl font-bold text-slate-100">Payment Records</h1>
-        <p className="text-sm text-slate-400 mt-1">Review the complete payment history across all billing periods.</p>
-      </div>
+      <AdminPageHeader
+        title="Payment Records"
+        subtitle="Review the complete payment history across all billing periods."
+      />
 
       <div className="flex flex-col sm:flex-row gap-3 mb-4">
         <input type="month" value={monthFilter} onChange={(e) => { setMonthFilter(e.target.value); setPage(1); }}
@@ -160,11 +163,10 @@ const PaymentRecords = () => {
               )}
             </div>
             <div className="flex justify-between items-center mt-5">
-              <button onClick={() => handlePrintBilling(showBilling)}
-                className="px-4 py-2 text-sm text-white bg-blue-600 rounded-lg hover:bg-blue-700 flex items-center gap-2">
+              <ActionButton variant="info" onClick={() => handlePrintBilling(showBilling)}>
                 Print Statement
-              </button>
-              <button onClick={() => setShowBilling(null)} className="px-4 py-2 text-sm text-slate-200 bg-slate-800 rounded-lg hover:bg-slate-700">Close</button>
+              </ActionButton>
+              <ActionButton variant="neutral" onClick={() => setShowBilling(null)}>Close</ActionButton>
             </div>
           </div>
         </div>

@@ -17,6 +17,7 @@ const Payments = () => {
   const now = new Date();
 
   const [payments, setPayments] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [search, setSearch] = useState('');
@@ -38,11 +39,13 @@ const Payments = () => {
   })();
 
   const fetchPayments = useCallback(async () => {
+    setLoading(true);
     try {
       const res = await api.get('/payments', { params: { page, limit: 10, search, status: statusFilter } });
       setPayments(res.data.payments);
       setTotalPages(res.data.totalPages);
     } catch { toast.error('Unable to load payment records.'); }
+    finally { setLoading(false); }
   }, [page, search, statusFilter]);
 
   useEffect(() => {
@@ -122,18 +125,15 @@ const Payments = () => {
 
   return (
     <div>
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6 rounded-2xl border border-slate-700/50 bg-slate-900/45 px-5 py-4">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-100">Payments</h1>
-          <p className="text-sm text-slate-400 mt-1">
-            {billingLabel ? `Current billing cycle: ${billingLabel}` : 'No active billing cycle. Create a billing cycle to begin.'}
-          </p>
-        </div>
-        <button onClick={() => setShowCreateModal(true)}
-          className="px-4 py-2 bg-emerald-500 text-white rounded-lg hover:bg-emerald-600 text-sm font-medium whitespace-nowrap transition-colors">
-          + Create Billing Cycle
-        </button>
-      </div>
+      <AdminPageHeader
+        title="Payments"
+        subtitle={billingLabel ? `Current billing cycle: ${billingLabel}` : 'No active billing cycle. Create a billing cycle to begin.'}
+        actions={
+          <ActionButton variant="success" onClick={() => setShowCreateModal(true)}>
+            + Create Billing Cycle
+          </ActionButton>
+        }
+      />
 
       <div className="flex flex-col sm:flex-row gap-3 mb-4">
         <div className="flex-1"><SearchBar value={search} onChange={(v) => { setSearch(v); setPage(1); }} placeholder="Search payment records by tenant..." /></div>
@@ -173,11 +173,10 @@ const Payments = () => {
               </div>
             </div>
             <div className="flex justify-end gap-3">
-              <button onClick={() => setShowCreateModal(false)} className="px-4 py-2 text-sm text-slate-200 bg-slate-800 rounded-lg hover:bg-slate-700">Cancel</button>
-              <button onClick={handleCreateBatch} disabled={creating}
-                className="px-4 py-2 text-sm text-white bg-primary-600 rounded-lg hover:bg-primary-700 disabled:opacity-50">
+              <ActionButton variant="neutral" onClick={() => setShowCreateModal(false)}>Cancel</ActionButton>
+              <ActionButton onClick={handleCreateBatch} disabled={creating}>
                 {creating ? 'Creating...' : 'Create Cycle'}
-              </button>
+              </ActionButton>
             </div>
           </div>
         </div>
@@ -220,11 +219,10 @@ const Payments = () => {
               )}
             </div>
             <div className="flex justify-between items-center mt-5">
-              <button onClick={() => handlePrintBilling(showBilling)}
-                className="px-4 py-2 text-sm text-white bg-blue-600 rounded-lg hover:bg-blue-700 flex items-center gap-2">
+              <ActionButton variant="info" onClick={() => handlePrintBilling(showBilling)}>
                 Print Statement
-              </button>
-              <button onClick={() => setShowBilling(null)} className="px-4 py-2 text-sm text-slate-200 bg-slate-800 rounded-lg hover:bg-slate-700">Close</button>
+              </ActionButton>
+              <ActionButton variant="neutral" onClick={() => setShowBilling(null)}>Close</ActionButton>
             </div>
           </div>
         </div>

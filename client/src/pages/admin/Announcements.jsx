@@ -4,9 +4,13 @@ import toast from 'react-hot-toast';
 import SearchBar from '../../components/SearchBar';
 import Pagination from '../../components/Pagination';
 import ConfirmModal from '../../components/ConfirmModal';
+import AdminPageHeader from '../../components/AdminPageHeader';
+import ActionButton from '../../components/ActionButton';
+import SectionLoader from '../../components/SectionLoader';
 
 const Announcements = () => {
   const [announcements, setAnnouncements] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [search, setSearch] = useState('');
@@ -16,11 +20,13 @@ const Announcements = () => {
   const [form, setForm] = useState({ title: '', content: '', category: 'general' });
 
   const fetchAnnouncements = useCallback(async () => {
+    setLoading(true);
     try {
       const res = await api.get('/announcements', { params: { page, limit: 10, search } });
       setAnnouncements(res.data.announcements);
       setTotalPages(res.data.totalPages);
     } catch { toast.error('Unable to load announcements.'); }
+    finally { setLoading(false); }
   }, [page, search]);
 
   useEffect(() => { fetchAnnouncements(); }, [fetchAnnouncements]);
@@ -59,16 +65,15 @@ const Announcements = () => {
 
   return (
     <div>
-      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 mb-6 rounded-2xl border border-slate-700/50 bg-slate-900/45 px-5 py-4">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-100">Announcements</h1>
-          <p className="text-sm text-slate-400">Share official updates with tenants and staff.</p>
-        </div>
-        <button onClick={() => { resetForm(); setShowForm(true); }}
-          className="px-4 py-2 text-sm font-medium text-white bg-emerald-500 rounded-lg hover:bg-emerald-600 transition-colors">
-          + Create Announcement
-        </button>
-      </div>
+      <AdminPageHeader
+        title="Announcements"
+        subtitle="Share official updates with tenants and staff."
+        actions={
+          <ActionButton variant="success" onClick={() => { resetForm(); setShowForm(true); }}>
+            + Create Announcement
+          </ActionButton>
+        }
+      />
 
       <div className="mb-4">
         <SearchBar value={search} onChange={(v) => { setSearch(v); setPage(1); }} placeholder="Search announcements..." />
@@ -101,8 +106,8 @@ const Announcements = () => {
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" rows="5" />
               </div>
               <div className="flex justify-end gap-3">
-                <button type="button" onClick={resetForm} className="px-4 py-2 text-sm text-slate-200 bg-slate-800 rounded-lg hover:bg-slate-700">Cancel</button>
-                <button type="submit" className="px-4 py-2 text-sm text-white bg-primary-600 rounded-lg hover:bg-primary-700">{editing ? 'Save Changes' : 'Publish Announcement'}</button>
+                <ActionButton type="button" variant="neutral" onClick={resetForm}>Cancel</ActionButton>
+                <ActionButton type="submit">{editing ? 'Save Changes' : 'Publish Announcement'}</ActionButton>
               </div>
             </form>
           </div>
@@ -110,31 +115,37 @@ const Announcements = () => {
       )}
 
       <div className="space-y-4">
-        {announcements.map(a => (
-          <div key={a.id} className="bg-white rounded-xl shadow-sm border border-gray-100 p-5">
-            <div className="flex justify-between items-start">
-              <div>
-                <div className="flex items-center gap-2 mb-1">
-                  <h3 className="text-base font-semibold text-gray-900">{a.title}</h3>
-                  <span className={`px-2 py-0.5 rounded-full text-xs font-medium capitalize ${
-                    a.category === 'important' ? 'bg-red-100 text-red-700' :
-                    a.category === 'event' ? 'bg-purple-100 text-purple-700' :
-                    a.category === 'maintenance' ? 'bg-orange-100 text-orange-700' :
-                    'bg-gray-100 text-gray-700'
-                  }`}>{a.category || 'general'}</span>
+        {loading ? (
+          <SectionLoader title="Loading Announcements" subtitle="Preparing the latest published updates." />
+        ) : (
+          <>
+            {announcements.map(a => (
+              <div key={a.id} className="bg-white rounded-xl shadow-sm border border-gray-100 p-5">
+                <div className="flex justify-between items-start">
+                  <div>
+                    <div className="flex items-center gap-2 mb-1">
+                      <h3 className="text-base font-semibold text-gray-900">{a.title}</h3>
+                      <span className={`px-2 py-0.5 rounded-full text-xs font-medium capitalize ${
+                        a.category === 'important' ? 'bg-red-100 text-red-700' :
+                        a.category === 'event' ? 'bg-purple-100 text-purple-700' :
+                        a.category === 'maintenance' ? 'bg-orange-100 text-orange-700' :
+                        'bg-gray-100 text-gray-700'
+                      }`}>{a.category || 'general'}</span>
+                    </div>
+                    <p className="text-sm text-gray-600 whitespace-pre-line mb-2">{a.content}</p>
+                    <p className="text-xs text-gray-400">Posted by {a.user?.firstName} {a.user?.lastName} on {new Date(a.createdAt).toLocaleDateString()}</p>
+                  </div>
+                  <div className="flex gap-2 ml-4 shrink-0">
+                    <button onClick={() => openEdit(a)} className="px-2 py-1 text-xs font-medium text-blue-200 bg-blue-500/15 rounded border border-blue-400/30 hover:bg-blue-500/25">Edit</button>
+                    <button onClick={() => setConfirmModal({ open: true, id: a.id })} className="text-red-600 hover:underline text-xs">Delete</button>
+                  </div>
                 </div>
-                <p className="text-sm text-gray-600 whitespace-pre-line mb-2">{a.content}</p>
-                <p className="text-xs text-gray-400">Posted by {a.user?.firstName} {a.user?.lastName} on {new Date(a.createdAt).toLocaleDateString()}</p>
               </div>
-              <div className="flex gap-2 ml-4 shrink-0">
-                <button onClick={() => openEdit(a)} className="px-2 py-1 text-xs font-medium text-blue-200 bg-blue-500/15 rounded border border-blue-400/30 hover:bg-blue-500/25">Edit</button>
-                <button onClick={() => setConfirmModal({ open: true, id: a.id })} className="text-red-600 hover:underline text-xs">Delete</button>
-              </div>
-            </div>
-          </div>
-        ))}
-        {announcements.length === 0 && (
-          <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-8 text-center text-gray-400">No announcements are available.</div>
+            ))}
+            {announcements.length === 0 && (
+              <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-8 text-center text-gray-400">No announcements are available.</div>
+            )}
+          </>
         )}
       </div>
 
