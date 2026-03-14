@@ -6,23 +6,27 @@ import {
 } from 'react-icons/hi';
 
 const adminLinks = [
-  { to: '/admin', label: 'Dashboard', icon: HiOutlineHome, end: true },
-  { to: '/admin/tenants', label: 'Tenants', icon: HiOutlineUserGroup },
-  { to: '/admin/rooms', label: 'Rooms', icon: HiOutlineOfficeBuilding },
-  { to: '/admin/payments', label: 'Payments', icon: HiOutlineCash },
-  { to: '/admin/payment-records', label: 'Payment Records', icon: HiOutlineViewList },
-  { to: '/admin/visitors', label: 'Visitors', icon: HiOutlineClipboardList },
-  { to: '/admin/reports', label: 'Reports', icon: HiOutlineChartBar },
+  { to: '/admin', label: 'Dashboard', icon: HiOutlineHome, end: true, preload: () => import('../pages/admin/Dashboard') },
+  { to: '/admin/tenants', label: 'Tenants', icon: HiOutlineUserGroup, preload: () => import('../pages/admin/Tenants') },
+  { to: '/admin/rooms', label: 'Rooms', icon: HiOutlineOfficeBuilding, preload: () => import('../pages/admin/Rooms') },
+  { to: '/admin/payments', label: 'Payments', icon: HiOutlineCash, preload: () => import('../pages/admin/Payments') },
+  { to: '/admin/payment-records', label: 'Payment Records', icon: HiOutlineViewList, preload: () => import('../pages/admin/PaymentRecords') },
+  { to: '/admin/visitors', label: 'Visitors', icon: HiOutlineClipboardList, preload: () => import('../pages/admin/Visitors') },
+  { to: '/admin/reports', label: 'Reports', icon: HiOutlineChartBar, preload: () => import('../pages/admin/Reports') },
 ];
 
 const Sidebar = ({ open, onClose }) => {
-  const { user, logout } = useAuth();
+  const { user, logout, startAuthTransition, stopAuthTransition } = useAuth();
   const navigate = useNavigate();
   const links = adminLinks;
 
   const handleLogout = () => {
+    startAuthTransition('Signing You Out', 'Securing your account and returning to sign-in.');
     logout();
     navigate('/login');
+    setTimeout(() => {
+      stopAuthTransition();
+    }, 650);
   };
 
   return (
@@ -37,7 +41,7 @@ const Sidebar = ({ open, onClose }) => {
         md:relative md:translate-x-0 md:pl-5 md:pr-3 md:py-5
         ${open ? 'translate-x-0' : '-translate-x-full'}
       `}>
-        <div className="flex flex-col h-full rounded-2xl border border-slate-700/55 bg-slate-900/70 backdrop-blur-xl shadow-[0_18px_40px_rgba(0,0,0,0.35)]">
+        <div className="flex flex-col h-full rounded-2xl border border-slate-700/55 bg-slate-900/70 backdrop-blur-xl shadow-[0_14px_34px_rgba(0,0,0,0.28)]">
           <div className="flex items-center justify-between h-16 px-4 border-b border-slate-700/40">
             <div className="flex items-center gap-3">
               <img src="/Bisu.png" alt="BISU" className="w-9 h-9 rounded-xl object-cover ring-2 ring-blue-400/70" />
@@ -51,27 +55,31 @@ const Sidebar = ({ open, onClose }) => {
             </button>
           </div>
 
-          <nav className="mt-4 px-3 space-y-1.5 flex-1">
-            {links.map(({ to, label, icon: Icon, end }) => (
+          <nav className="mt-4 px-3 flex-1">
+            <div className="space-y-1.5">
+            {links.map(({ to, label, icon: Icon, end, preload }) => (
               <NavLink
                 key={to}
                 to={to}
                 end={end}
                 onClick={onClose}
+                onMouseEnter={preload}
+                onFocus={preload}
                 className={({ isActive }) =>
-                  `group flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-medium transition-all ${
+                  `group flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 ${
                     isActive
-                      ? 'bg-blue-500/18 text-blue-100 border border-blue-300/25 shadow-[inset_0_0_0_1px_rgba(59,130,246,0.2)]'
-                      : 'text-slate-300 hover:bg-slate-800/70 hover:text-slate-100 border border-transparent'
+                      ? 'bg-blue-500/18 text-blue-100 border border-blue-300/35 shadow-[inset_0_0_0_1px_rgba(59,130,246,0.24),0_0_0_1px_rgba(59,130,246,0.08)] translate-x-[1px]'
+                      : 'text-slate-300 hover:bg-slate-800/70 hover:text-slate-100 hover:border-slate-600/70 border border-transparent'
                   }`
                 }
               >
-                <span className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-slate-800/80 group-hover:bg-slate-700/80">
+                <span className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-slate-800/80 group-hover:bg-slate-700/80 transition-colors duration-200">
                   <Icon className="w-4.5 h-4.5" />
                 </span>
                 {label}
               </NavLink>
             ))}
+            </div>
           </nav>
 
           <div className="mx-3 mb-3 mt-2 rounded-xl border border-slate-700/60 bg-slate-800/55 p-3">

@@ -4,9 +4,13 @@ import toast from 'react-hot-toast';
 import SearchBar from '../../components/SearchBar';
 import Pagination from '../../components/Pagination';
 import ConfirmModal from '../../components/ConfirmModal';
+import AdminPageHeader from '../../components/AdminPageHeader';
+import ActionButton from '../../components/ActionButton';
+import SectionLoader from '../../components/SectionLoader';
 
 const Visitors = () => {
   const [visitors, setVisitors] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [search, setSearch] = useState('');
@@ -17,11 +21,13 @@ const Visitors = () => {
   const [form, setForm] = useState({ visitorName: '', tenantVisitedId: '', purpose: '' });
 
   const fetchVisitors = useCallback(async () => {
+    setLoading(true);
     try {
       const res = await api.get('/visitors', { params: { page, limit: 10, search, date: dateFilter } });
       setVisitors(res.data.visitors);
       setTotalPages(res.data.totalPages);
     } catch { toast.error('Unable to load visitor records.'); }
+    finally { setLoading(false); }
   }, [page, search, dateFilter]);
 
   useEffect(() => { fetchVisitors(); }, [fetchVisitors]);
@@ -66,13 +72,11 @@ const Visitors = () => {
 
   return (
     <div>
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6 rounded-2xl border border-slate-700/50 bg-slate-900/45 px-5 py-4">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-100">Visitor Log</h1>
-          <p className="text-sm text-slate-400">Monitor visitor check-in and check-out activity.</p>
-        </div>
-        <button onClick={openCreate} className="px-4 py-2 bg-emerald-500 text-white rounded-lg hover:bg-emerald-600 text-sm font-medium transition-colors">+ Add Visitor Entry</button>
-      </div>
+      <AdminPageHeader
+        title="Visitor Log"
+        subtitle="Monitor visitor check-in and check-out activity."
+        actions={<ActionButton variant="success" onClick={openCreate}>+ Add Visitor Entry</ActionButton>}
+      />
 
       <div className="flex flex-col sm:flex-row gap-3 mb-4">
         <div className="flex-1"><SearchBar value={search} onChange={(v) => { setSearch(v); setPage(1); }} placeholder="Search visitor records..." /></div>
@@ -105,48 +109,52 @@ const Visitors = () => {
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" required />
               </div>
               <div className="flex justify-end gap-3">
-                <button type="button" onClick={() => setShowForm(false)} className="px-4 py-2 text-sm text-slate-200 bg-slate-800 rounded-lg hover:bg-slate-700">Cancel</button>
-                <button type="submit" className="px-4 py-2 text-sm text-white bg-primary-600 rounded-lg hover:bg-primary-700">Save Entry</button>
+                <ActionButton type="button" variant="neutral" onClick={() => setShowForm(false)}>Cancel</ActionButton>
+                <ActionButton type="submit">Save Entry</ActionButton>
               </div>
             </form>
           </div>
         </div>
       )}
 
-      <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead className="bg-gray-50 border-b border-gray-200">
-            <tr>
-              <th className="text-left px-4 py-3 font-medium text-gray-600">Visitor</th>
-              <th className="text-left px-4 py-3 font-medium text-gray-600">Tenant Visited</th>
-              <th className="text-left px-4 py-3 font-medium text-gray-600 hidden md:table-cell">Purpose</th>
-              <th className="text-left px-4 py-3 font-medium text-gray-600">Time In</th>
-              <th className="text-left px-4 py-3 font-medium text-gray-600">Time Out</th>
-              <th className="text-left px-4 py-3 font-medium text-gray-600">Actions</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-100">
-            {visitors.map(v => (
-              <tr key={v.id} className="hover:bg-gray-50">
-                <td className="px-4 py-3 font-medium">{v.visitorName}</td>
-                <td className="px-4 py-3">{v.tenantVisited ? `${v.tenantVisited.firstName} ${v.tenantVisited.lastName}` : '—'}</td>
-                <td className="px-4 py-3 hidden md:table-cell">{v.purpose}</td>
-                <td className="px-4 py-3 text-xs">{formatTime(v.timeIn)}</td>
-                <td className="px-4 py-3 text-xs">{v.timeOut ? formatTime(v.timeOut) : <span className="text-amber-300 font-medium">On Site</span>}</td>
-                <td className="px-4 py-3">
-                  <div className="flex gap-2">
-                    {!v.timeOut && <button onClick={() => handleCheckout(v.id)} className="text-green-600 hover:underline text-xs">Check Out</button>}
-                    <button onClick={() => setConfirmModal({ open: true, id: v.id })} className="text-red-600 hover:underline text-xs">Delete</button>
-                  </div>
-                </td>
+      {loading ? (
+        <SectionLoader title="Loading Visitor Logs" subtitle="Compiling recent check-ins and checkout activity." />
+      ) : (
+        <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead className="bg-gray-50 border-b border-gray-200">
+              <tr>
+                <th className="text-left px-4 py-3 font-medium text-gray-600">Visitor</th>
+                <th className="text-left px-4 py-3 font-medium text-gray-600">Tenant Visited</th>
+                <th className="text-left px-4 py-3 font-medium text-gray-600 hidden md:table-cell">Purpose</th>
+                <th className="text-left px-4 py-3 font-medium text-gray-600">Time In</th>
+                <th className="text-left px-4 py-3 font-medium text-gray-600">Time Out</th>
+                <th className="text-left px-4 py-3 font-medium text-gray-600">Actions</th>
               </tr>
-            ))}
-            {visitors.length === 0 && (
-              <tr><td colSpan={6} className="px-4 py-8 text-center text-gray-400">No visitor records found.</td></tr>
-            )}
-          </tbody>
-        </table>
-      </div>
+            </thead>
+            <tbody className="divide-y divide-gray-100">
+              {visitors.map(v => (
+                <tr key={v.id} className="hover:bg-gray-50">
+                  <td className="px-4 py-3 font-medium">{v.visitorName}</td>
+                  <td className="px-4 py-3">{v.tenantVisited ? `${v.tenantVisited.firstName} ${v.tenantVisited.lastName}` : '—'}</td>
+                  <td className="px-4 py-3 hidden md:table-cell">{v.purpose}</td>
+                  <td className="px-4 py-3 text-xs">{formatTime(v.timeIn)}</td>
+                  <td className="px-4 py-3 text-xs">{v.timeOut ? formatTime(v.timeOut) : <span className="text-amber-300 font-medium">On Site</span>}</td>
+                  <td className="px-4 py-3">
+                    <div className="flex gap-2">
+                      {!v.timeOut && <button onClick={() => handleCheckout(v.id)} className="text-green-600 hover:underline text-xs">Check Out</button>}
+                      <button onClick={() => setConfirmModal({ open: true, id: v.id })} className="text-red-600 hover:underline text-xs">Delete</button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+              {visitors.length === 0 && (
+                <tr><td colSpan={6} className="px-4 py-8 text-center text-gray-400">No visitor records found.</td></tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      )}
 
       <Pagination page={page} totalPages={totalPages} onPageChange={setPage} />
       <ConfirmModal open={confirmModal.open} title="Delete Visitor Record" message="Are you sure you want to delete this visitor record?"

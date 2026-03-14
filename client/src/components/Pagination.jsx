@@ -4,11 +4,11 @@ const Pagination = ({ page, totalPages, onPageChange }) => {
   if (totalPages <= 1) return null;
 
   return (
-    <div className="flex items-center justify-between mt-4 px-2">
+    <div className="flex items-center justify-between mt-4 px-2 py-2 rounded-xl border border-slate-700/40 bg-slate-900/35">
       <p className="text-sm text-slate-400">
         Page {page} of {totalPages}
       </p>
-      <div className="flex gap-1">
+      <div className="flex gap-1.5">
         <button
           disabled={page <= 1}
           onClick={() => onPageChange(page - 1)}
@@ -33,7 +33,7 @@ const Pagination = ({ page, totalPages, onPageChange }) => {
               onClick={() => onPageChange(pageNum)}
               className={`px-3 py-1 rounded-lg text-sm font-medium transition-colors ${
                 pageNum === page
-                  ? 'bg-primary-600 text-white'
+                  ? 'bg-primary-600 text-white shadow-sm'
                   : 'border border-slate-700 text-slate-300 hover:bg-slate-800/80'
               }`}
             >

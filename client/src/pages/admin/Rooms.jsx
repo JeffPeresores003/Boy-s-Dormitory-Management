@@ -4,6 +4,9 @@ import toast from 'react-hot-toast';
 import SearchBar from '../../components/SearchBar';
 import Pagination from '../../components/Pagination';
 import ConfirmModal from '../../components/ConfirmModal';
+import AdminPageHeader from '../../components/AdminPageHeader';
+import ActionButton from '../../components/ActionButton';
+import SectionLoader from '../../components/SectionLoader';
 
 const statusColors = {
   available: 'bg-green-100 text-green-700',
@@ -13,6 +16,7 @@ const statusColors = {
 
 const Rooms = () => {
   const [rooms, setRooms] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [search, setSearch] = useState('');
@@ -27,11 +31,13 @@ const Rooms = () => {
   const [form, setForm] = useState({ roomNumber: '', floor: 1, capacity: 1, description: '', status: 'available' });
 
   const fetchRooms = useCallback(async () => {
+    setLoading(true);
     try {
       const res = await api.get('/rooms', { params: { page, limit: 10, search, status: statusFilter } });
       setRooms(res.data.rooms);
       setTotalPages(res.data.totalPages);
     } catch { toast.error('Unable to load room records.'); }
+    finally { setLoading(false); }
   }, [page, search, statusFilter]);
 
   useEffect(() => { fetchRooms(); }, [fetchRooms]);
@@ -97,13 +103,15 @@ const Rooms = () => {
 
   return (
     <div>
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6 rounded-2xl border border-slate-700/50 bg-slate-900/45 px-5 py-4">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-100">Rooms</h1>
-          <p className="text-sm text-slate-400">Manage room capacity, occupancy, and tenant assignments.</p>
-        </div>
-        <button onClick={() => { resetForm(); setShowForm(true); }} className="px-4 py-2 bg-emerald-500 text-white rounded-lg hover:bg-emerald-600 text-sm font-medium transition-colors">+ Add Room</button>
-      </div>
+      <AdminPageHeader
+        title="Rooms"
+        subtitle="Manage room capacity, occupancy, and tenant assignments."
+        actions={
+          <ActionButton variant="success" onClick={() => { resetForm(); setShowForm(true); }}>
+            + Add Room
+          </ActionButton>
+        }
+      />
 
       <div className="flex flex-col sm:flex-row gap-3 mb-4">
         <div className="flex-1"><SearchBar value={search} onChange={(v) => { setSearch(v); setPage(1); }} placeholder="Search rooms by number..." /></div>
@@ -156,8 +164,8 @@ const Rooms = () => {
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" rows="2" />
               </div>
               <div className="flex justify-end gap-3">
-                <button type="button" onClick={resetForm} className="px-4 py-2 text-sm text-slate-200 bg-slate-800 rounded-lg hover:bg-slate-700">Cancel</button>
-                <button type="submit" className="px-4 py-2 text-sm text-white bg-primary-600 rounded-lg hover:bg-primary-700">{editingId ? 'Save Changes' : 'Create Room'}</button>
+                <ActionButton type="button" variant="neutral" onClick={resetForm}>Cancel</ActionButton>
+                <ActionButton type="submit">{editingId ? 'Save Changes' : 'Create Room'}</ActionButton>
               </div>
             </form>
           </div>
@@ -177,8 +185,8 @@ const Rooms = () => {
               ))}
             </select>
             <div className="flex justify-end gap-3">
-              <button onClick={() => { setShowAssign(null); setAssignTenantId(''); }} className="px-4 py-2 text-sm text-slate-200 bg-slate-800 rounded-lg hover:bg-slate-700">Cancel</button>
-              <button onClick={handleAssign} className="px-4 py-2 text-sm text-white bg-primary-600 rounded-lg hover:bg-primary-700">Assign Tenant</button>
+              <ActionButton variant="neutral" onClick={() => { setShowAssign(null); setAssignTenantId(''); }}>Cancel</ActionButton>
+              <ActionButton onClick={handleAssign}>Assign Tenant</ActionButton>
             </div>
           </div>
         </div>
@@ -233,75 +241,79 @@ const Rooms = () => {
               )}
             </div>
             <div className="flex justify-end mt-6">
-              <button onClick={() => setShowOccupants(null)} className="px-4 py-2 text-sm text-slate-200 bg-slate-800 rounded-lg hover:bg-slate-700">
+              <ActionButton variant="neutral" onClick={() => setShowOccupants(null)}>
                 Close
-              </button>
+              </ActionButton>
             </div>
           </div>
         </div>
       )}
 
       {/* Table */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead className="bg-gray-50 border-b border-gray-200">
-            <tr>
-              <th className="text-left px-4 py-3 font-medium text-gray-600">Room</th>
-              <th className="text-left px-4 py-3 font-medium text-gray-600">Floor</th>
-              <th className="text-left px-4 py-3 font-medium text-gray-600">Occupancy</th>
-              <th className="text-left px-4 py-3 font-medium text-gray-600">Availability</th>
-              <th className="text-left px-4 py-3 font-medium text-gray-600">Status</th>
-              <th className="text-left px-4 py-3 font-medium text-gray-600">Occupants</th>
-              <th className="text-left px-4 py-3 font-medium text-gray-600">Actions</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-100">
-            {rooms.map(r => (
-              <tr key={r.id} className="hover:bg-gray-50">
-                <td className="px-4 py-3 font-medium">{r.roomNumber}</td>
-                <td className="px-4 py-3">{r.floor}</td>
-                <td className="px-4 py-3">{r.occupancyCount}/{r.capacity}</td>
-                <td className="px-4 py-3">
-                  <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                    r.availabilityMessage === 'Room Full' ? 'bg-red-100 text-red-700' :
-                    r.availabilityMessage === 'Under Maintenance' ? 'bg-yellow-100 text-yellow-700' :
-                    'bg-green-100 text-green-700'
-                  }`}>
-                    {r.availabilityMessage}
-                  </span>
-                </td>
-                <td className="px-4 py-3">
-                  <span className={`px-2 py-1 rounded-full text-xs font-medium capitalize ${statusColors[r.status]}`}>{r.status}</span>
-                </td>
-                <td className="px-4 py-3">
-                  {r.occupants && r.occupants.length > 0 ? (
-                    <button
-                      onClick={() => setShowOccupants(r)}
-                      className="px-3 py-1 text-xs font-medium text-blue-200 bg-blue-500/15 rounded-lg border border-blue-400/30 hover:bg-blue-500/25 transition-colors"
-                    >
-                      View ({r.occupants.length})
-                    </button>
-                  ) : (
-                    <span className="text-slate-500">No occupants assigned</span>
-                  )}
-                </td>
-                <td className="px-4 py-3">
-                  <div className="flex gap-2">
-                    <button onClick={() => handleEdit(r)} className="text-primary-600 hover:underline text-xs">Edit</button>
-                    {r.isAvailable && (
-                      <button onClick={() => openAssign(r)} className="text-green-600 hover:underline text-xs">Assign</button>
-                    )}
-                    <button onClick={() => setConfirmModal({ open: true, id: r.id })} className="text-red-600 hover:underline text-xs">Delete</button>
-                  </div>
-                </td>
+      {loading ? (
+        <SectionLoader title="Loading Room Data" subtitle="Gathering occupancy, capacity, and room status details." />
+      ) : (
+        <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead className="bg-gray-50 border-b border-gray-200">
+              <tr>
+                <th className="text-left px-4 py-3 font-medium text-gray-600">Room</th>
+                <th className="text-left px-4 py-3 font-medium text-gray-600">Floor</th>
+                <th className="text-left px-4 py-3 font-medium text-gray-600">Occupancy</th>
+                <th className="text-left px-4 py-3 font-medium text-gray-600">Availability</th>
+                <th className="text-left px-4 py-3 font-medium text-gray-600">Status</th>
+                <th className="text-left px-4 py-3 font-medium text-gray-600">Occupants</th>
+                <th className="text-left px-4 py-3 font-medium text-gray-600">Actions</th>
               </tr>
-            ))}
-            {rooms.length === 0 && (
-              <tr><td colSpan={7} className="px-4 py-8 text-center text-gray-400">No room records found.</td></tr>
-            )}
-          </tbody>
-        </table>
-      </div>
+            </thead>
+            <tbody className="divide-y divide-gray-100">
+              {rooms.map(r => (
+                <tr key={r.id} className="hover:bg-gray-50">
+                  <td className="px-4 py-3 font-medium">{r.roomNumber}</td>
+                  <td className="px-4 py-3">{r.floor}</td>
+                  <td className="px-4 py-3">{r.occupancyCount}/{r.capacity}</td>
+                  <td className="px-4 py-3">
+                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                      r.availabilityMessage === 'Room Full' ? 'bg-red-100 text-red-700' :
+                      r.availabilityMessage === 'Under Maintenance' ? 'bg-yellow-100 text-yellow-700' :
+                      'bg-green-100 text-green-700'
+                    }`}>
+                      {r.availabilityMessage}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3">
+                    <span className={`px-2 py-1 rounded-full text-xs font-medium capitalize ${statusColors[r.status]}`}>{r.status}</span>
+                  </td>
+                  <td className="px-4 py-3">
+                    {r.occupants && r.occupants.length > 0 ? (
+                      <button
+                        onClick={() => setShowOccupants(r)}
+                        className="px-3 py-1 text-xs font-medium text-blue-200 bg-blue-500/15 rounded-lg border border-blue-400/30 hover:bg-blue-500/25 transition-colors"
+                      >
+                        View ({r.occupants.length})
+                      </button>
+                    ) : (
+                      <span className="text-slate-500">No occupants assigned</span>
+                    )}
+                  </td>
+                  <td className="px-4 py-3">
+                    <div className="flex gap-2">
+                      <button onClick={() => handleEdit(r)} className="text-primary-600 hover:underline text-xs">Edit</button>
+                      {r.isAvailable && (
+                        <button onClick={() => openAssign(r)} className="text-green-600 hover:underline text-xs">Assign</button>
+                      )}
+                      <button onClick={() => setConfirmModal({ open: true, id: r.id })} className="text-red-600 hover:underline text-xs">Delete</button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+              {rooms.length === 0 && (
+                <tr><td colSpan={7} className="px-4 py-8 text-center text-gray-400">No room records found.</td></tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      )}
 
       <Pagination page={page} totalPages={totalPages} onPageChange={setPage} />
       <ConfirmModal open={confirmModal.open} title="Delete Room" message="Are you sure you want to delete this room? Rooms with assigned occupants cannot be deleted."

@@ -3,6 +3,9 @@ import api from '../../services/api';
 import toast from 'react-hot-toast';
 import SearchBar from '../../components/SearchBar';
 import Pagination from '../../components/Pagination';
+import AdminPageHeader from '../../components/AdminPageHeader';
+import ActionButton from '../../components/ActionButton';
+import SectionLoader from '../../components/SectionLoader';
 
 const statusColors = {
   paid: 'bg-green-100 text-green-700',
@@ -22,6 +25,7 @@ const fmtMonth = (d) => {
 
 const PaymentRecords = () => {
   const [records, setRecords] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [search, setSearch] = useState('');
@@ -30,6 +34,7 @@ const PaymentRecords = () => {
   const [showBilling, setShowBilling] = useState(null);
 
   const fetchRecords = useCallback(async () => {
+    setLoading(true);
     try {
       const res = await api.get('/payments/records', {
         params: { page, limit: 10, search, status: statusFilter, month: monthFilter },
@@ -37,6 +42,7 @@ const PaymentRecords = () => {
       setRecords(res.data.payments);
       setTotalPages(res.data.totalPages);
     } catch { toast.error('Unable to load payment history.'); }
+    finally { setLoading(false); }
   }, [page, search, statusFilter, monthFilter]);
 
   useEffect(() => { fetchRecords(); }, [fetchRecords]);
@@ -90,10 +96,10 @@ const PaymentRecords = () => {
 
   return (
     <div>
-      <div className="mb-6 rounded-2xl border border-slate-700/50 bg-slate-900/45 px-5 py-4">
-        <h1 className="text-2xl font-bold text-slate-100">Payment Records</h1>
-        <p className="text-sm text-slate-400 mt-1">Review the complete payment history across all billing periods.</p>
-      </div>
+      <AdminPageHeader
+        title="Payment Records"
+        subtitle="Review the complete payment history across all billing periods."
+      />
 
       <div className="flex flex-col sm:flex-row gap-3 mb-4">
         <input type="month" value={monthFilter} onChange={(e) => { setMonthFilter(e.target.value); setPage(1); }}
@@ -155,56 +161,59 @@ const PaymentRecords = () => {
               )}
             </div>
             <div className="flex justify-between items-center mt-5">
-              <button onClick={() => handlePrintBilling(showBilling)}
-                className="px-4 py-2 text-sm text-white bg-blue-600 rounded-lg hover:bg-blue-700 flex items-center gap-2">
+              <ActionButton variant="info" onClick={() => handlePrintBilling(showBilling)}>
                 Print Statement
-              </button>
-              <button onClick={() => setShowBilling(null)} className="px-4 py-2 text-sm text-slate-200 bg-slate-800 rounded-lg hover:bg-slate-700">Close</button>
+              </ActionButton>
+              <ActionButton variant="neutral" onClick={() => setShowBilling(null)}>Close</ActionButton>
             </div>
           </div>
         </div>
       )}
 
-      <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead className="bg-gray-50 border-b border-gray-200">
-            <tr>
-              <th className="text-left px-4 py-3 font-medium text-gray-600">Tenant</th>
-              <th className="text-left px-4 py-3 font-medium text-gray-600">Month</th>
-              <th className="text-left px-4 py-3 font-medium text-gray-600">Amount</th>
-              <th className="text-left px-4 py-3 font-medium text-gray-600">Status</th>
-              <th className="text-left px-4 py-3 font-medium text-gray-600 hidden md:table-cell">Due Date</th>
-              <th className="text-left px-4 py-3 font-medium text-gray-600 hidden md:table-cell">Paid Date</th>
-              <th className="text-left px-4 py-3 font-medium text-gray-600">Actions</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-100">
-            {records.map(p => (
-              <tr key={p.id} className="hover:bg-gray-50">
-                <td className="px-4 py-3 font-medium">{p.tenant ? `${p.tenant.firstName} ${p.tenant.lastName}` : '—'}</td>
-                <td className="px-4 py-3 text-gray-600">{fmtMonth(p.dueDate)}</td>
-                <td className="px-4 py-3">₱{parseFloat(p.amount).toLocaleString()}</td>
-                <td className="px-4 py-3">
-                  <span className={`px-2 py-1 rounded-full text-xs font-medium capitalize ${statusColors[p.status]}`}>{p.status}</span>
-                </td>
-                <td className="px-4 py-3 hidden md:table-cell text-gray-600">{fmtDate(p.dueDate)}</td>
-                <td className="px-4 py-3 hidden md:table-cell text-gray-600">{p.paymentDate ? fmtDate(p.paymentDate) : '—'}</td>
-                <td className="px-4 py-3">
-                  <div className="flex gap-2">
-                    <button onClick={() => setShowBilling(p)} className="px-2 py-1 text-xs font-medium text-blue-200 bg-blue-500/15 rounded border border-blue-400/30 hover:bg-blue-500/25">View Statement</button>
-                    {p.status !== 'paid' && (
-                      <button onClick={() => handleMarkPaid(p)} className="px-2 py-1 text-xs font-medium text-emerald-200 bg-emerald-500/15 rounded border border-emerald-400/30 hover:bg-emerald-500/25">Record Payment</button>
-                    )}
-                  </div>
-                </td>
+      {loading ? (
+        <SectionLoader title="Loading Payment Records" subtitle="Retrieving billing history and settlement status." />
+      ) : (
+        <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead className="bg-gray-50 border-b border-gray-200">
+              <tr>
+                <th className="text-left px-4 py-3 font-medium text-gray-600">Tenant</th>
+                <th className="text-left px-4 py-3 font-medium text-gray-600">Month</th>
+                <th className="text-left px-4 py-3 font-medium text-gray-600">Amount</th>
+                <th className="text-left px-4 py-3 font-medium text-gray-600">Status</th>
+                <th className="text-left px-4 py-3 font-medium text-gray-600 hidden md:table-cell">Due Date</th>
+                <th className="text-left px-4 py-3 font-medium text-gray-600 hidden md:table-cell">Paid Date</th>
+                <th className="text-left px-4 py-3 font-medium text-gray-600">Actions</th>
               </tr>
-            ))}
-            {records.length === 0 && (
-              <tr><td colSpan={7} className="px-4 py-8 text-center text-gray-400">No payment history records found.</td></tr>
-            )}
-          </tbody>
-        </table>
-      </div>
+            </thead>
+            <tbody className="divide-y divide-gray-100">
+              {records.map(p => (
+                <tr key={p.id} className="hover:bg-gray-50">
+                  <td className="px-4 py-3 font-medium">{p.tenant ? `${p.tenant.firstName} ${p.tenant.lastName}` : '—'}</td>
+                  <td className="px-4 py-3 text-gray-600">{fmtMonth(p.dueDate)}</td>
+                  <td className="px-4 py-3">₱{parseFloat(p.amount).toLocaleString()}</td>
+                  <td className="px-4 py-3">
+                    <span className={`px-2 py-1 rounded-full text-xs font-medium capitalize ${statusColors[p.status]}`}>{p.status}</span>
+                  </td>
+                  <td className="px-4 py-3 hidden md:table-cell text-gray-600">{fmtDate(p.dueDate)}</td>
+                  <td className="px-4 py-3 hidden md:table-cell text-gray-600">{p.paymentDate ? fmtDate(p.paymentDate) : '—'}</td>
+                  <td className="px-4 py-3">
+                    <div className="flex gap-2">
+                      <button onClick={() => setShowBilling(p)} className="px-2 py-1 text-xs font-medium text-blue-200 bg-blue-500/15 rounded border border-blue-400/30 hover:bg-blue-500/25">View Statement</button>
+                      {p.status !== 'paid' && (
+                        <button onClick={() => handleMarkPaid(p)} className="px-2 py-1 text-xs font-medium text-emerald-200 bg-emerald-500/15 rounded border border-emerald-400/30 hover:bg-emerald-500/25">Record Payment</button>
+                      )}
+                    </div>
+                  </td>
+                </tr>
+              ))}
+              {records.length === 0 && (
+                <tr><td colSpan={7} className="px-4 py-8 text-center text-gray-400">No payment history records found.</td></tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      )}
 
       <Pagination page={page} totalPages={totalPages} onPageChange={setPage} />
     </div>

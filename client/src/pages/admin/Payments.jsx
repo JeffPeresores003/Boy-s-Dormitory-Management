@@ -3,6 +3,9 @@ import api from '../../services/api';
 import toast from 'react-hot-toast';
 import SearchBar from '../../components/SearchBar';
 import Pagination from '../../components/Pagination';
+import AdminPageHeader from '../../components/AdminPageHeader';
+import ActionButton from '../../components/ActionButton';
+import SectionLoader from '../../components/SectionLoader';
 
 const statusColors = {
   paid: 'bg-green-100 text-green-700',
@@ -16,6 +19,7 @@ const Payments = () => {
   const now = new Date();
 
   const [payments, setPayments] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [search, setSearch] = useState('');
@@ -36,11 +40,13 @@ const Payments = () => {
   })();
 
   const fetchPayments = useCallback(async () => {
+    setLoading(true);
     try {
       const res = await api.get('/payments', { params: { page, limit: 10, search, status: statusFilter } });
       setPayments(res.data.payments);
       setTotalPages(res.data.totalPages);
     } catch { toast.error('Unable to load payment records.'); }
+    finally { setLoading(false); }
   }, [page, search, statusFilter]);
 
   useEffect(() => { fetchPayments(); }, [fetchPayments]);
@@ -117,18 +123,15 @@ const Payments = () => {
 
   return (
     <div>
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6 rounded-2xl border border-slate-700/50 bg-slate-900/45 px-5 py-4">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-100">Payments</h1>
-          <p className="text-sm text-slate-400 mt-1">
-            {billingLabel ? `Current billing cycle: ${billingLabel}` : 'No active billing cycle. Create a billing cycle to begin.'}
-          </p>
-        </div>
-        <button onClick={() => setShowCreateModal(true)}
-          className="px-4 py-2 bg-emerald-500 text-white rounded-lg hover:bg-emerald-600 text-sm font-medium whitespace-nowrap transition-colors">
-          + Create Billing Cycle
-        </button>
-      </div>
+      <AdminPageHeader
+        title="Payments"
+        subtitle={billingLabel ? `Current billing cycle: ${billingLabel}` : 'No active billing cycle. Create a billing cycle to begin.'}
+        actions={
+          <ActionButton variant="success" onClick={() => setShowCreateModal(true)}>
+            + Create Billing Cycle
+          </ActionButton>
+        }
+      />
 
       <div className="flex flex-col sm:flex-row gap-3 mb-4">
         <div className="flex-1"><SearchBar value={search} onChange={(v) => { setSearch(v); setPage(1); }} placeholder="Search payment records by tenant..." /></div>
@@ -168,11 +171,10 @@ const Payments = () => {
               </div>
             </div>
             <div className="flex justify-end gap-3">
-              <button onClick={() => setShowCreateModal(false)} className="px-4 py-2 text-sm text-slate-200 bg-slate-800 rounded-lg hover:bg-slate-700">Cancel</button>
-              <button onClick={handleCreateBatch} disabled={creating}
-                className="px-4 py-2 text-sm text-white bg-primary-600 rounded-lg hover:bg-primary-700 disabled:opacity-50">
+              <ActionButton variant="neutral" onClick={() => setShowCreateModal(false)}>Cancel</ActionButton>
+              <ActionButton onClick={handleCreateBatch} disabled={creating}>
                 {creating ? 'Creating...' : 'Create Cycle'}
-              </button>
+              </ActionButton>
             </div>
           </div>
         </div>
@@ -215,53 +217,56 @@ const Payments = () => {
               )}
             </div>
             <div className="flex justify-between items-center mt-5">
-              <button onClick={() => handlePrintBilling(showBilling)}
-                className="px-4 py-2 text-sm text-white bg-blue-600 rounded-lg hover:bg-blue-700 flex items-center gap-2">
+              <ActionButton variant="info" onClick={() => handlePrintBilling(showBilling)}>
                 Print Statement
-              </button>
-              <button onClick={() => setShowBilling(null)} className="px-4 py-2 text-sm text-slate-200 bg-slate-800 rounded-lg hover:bg-slate-700">Close</button>
+              </ActionButton>
+              <ActionButton variant="neutral" onClick={() => setShowBilling(null)}>Close</ActionButton>
             </div>
           </div>
         </div>
       )}
 
       {/* Table */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead className="bg-gray-50 border-b border-gray-200">
-            <tr>
-              <th className="text-left px-4 py-3 font-medium text-gray-600">Tenant</th>
-              <th className="text-left px-4 py-3 font-medium text-gray-600">Amount</th>
-              <th className="text-left px-4 py-3 font-medium text-gray-600">Status</th>
-              <th className="text-left px-4 py-3 font-medium text-gray-600 hidden lg:table-cell">Due Date</th>
-              <th className="text-left px-4 py-3 font-medium text-gray-600">Actions</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-100">
-            {payments.map(p => (
-              <tr key={p.id} className="hover:bg-gray-50">
-                <td className="px-4 py-3 font-medium">{p.tenant ? `${p.tenant.firstName} ${p.tenant.lastName}` : '—'}</td>
-                <td className="px-4 py-3">₱{parseFloat(p.amount).toLocaleString()}</td>
-                <td className="px-4 py-3">
-                  <span className={`px-2 py-1 rounded-full text-xs font-medium capitalize ${statusColors[p.status]}`}>{p.status}</span>
-                </td>
-                <td className="px-4 py-3 hidden lg:table-cell">{p.dueDate}</td>
-                <td className="px-4 py-3">
-                  <div className="flex gap-2">
-                    <button onClick={() => setShowBilling(p)} className="px-2 py-1 text-xs font-medium text-blue-200 bg-blue-500/15 rounded border border-blue-400/30 hover:bg-blue-500/25">View Statement</button>
-                    {p.status !== 'paid' && (
-                      <button onClick={() => handleMarkPaid(p)} className="px-2 py-1 text-xs font-medium text-emerald-200 bg-emerald-500/15 rounded border border-emerald-400/30 hover:bg-emerald-500/25">Record Payment</button>
-                    )}
-                  </div>
-                </td>
+      {loading ? (
+        <SectionLoader title="Loading Payments" subtitle="Preparing current billing cycle and payment records." />
+      ) : (
+        <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead className="bg-gray-50 border-b border-gray-200">
+              <tr>
+                <th className="text-left px-4 py-3 font-medium text-gray-600">Tenant</th>
+                <th className="text-left px-4 py-3 font-medium text-gray-600">Amount</th>
+                <th className="text-left px-4 py-3 font-medium text-gray-600">Status</th>
+                <th className="text-left px-4 py-3 font-medium text-gray-600 hidden lg:table-cell">Due Date</th>
+                <th className="text-left px-4 py-3 font-medium text-gray-600">Actions</th>
               </tr>
-            ))}
-            {payments.length === 0 && (
-              <tr><td colSpan={5} className="px-4 py-8 text-center text-gray-400">No payment records found.</td></tr>
-            )}
-          </tbody>
-        </table>
-      </div>
+            </thead>
+            <tbody className="divide-y divide-gray-100">
+              {payments.map(p => (
+                <tr key={p.id} className="hover:bg-gray-50">
+                  <td className="px-4 py-3 font-medium">{p.tenant ? `${p.tenant.firstName} ${p.tenant.lastName}` : '—'}</td>
+                  <td className="px-4 py-3">₱{parseFloat(p.amount).toLocaleString()}</td>
+                  <td className="px-4 py-3">
+                    <span className={`px-2 py-1 rounded-full text-xs font-medium capitalize ${statusColors[p.status]}`}>{p.status}</span>
+                  </td>
+                  <td className="px-4 py-3 hidden lg:table-cell">{p.dueDate}</td>
+                  <td className="px-4 py-3">
+                    <div className="flex gap-2">
+                      <button onClick={() => setShowBilling(p)} className="px-2 py-1 text-xs font-medium text-blue-200 bg-blue-500/15 rounded border border-blue-400/30 hover:bg-blue-500/25">View Statement</button>
+                      {p.status !== 'paid' && (
+                        <button onClick={() => handleMarkPaid(p)} className="px-2 py-1 text-xs font-medium text-emerald-200 bg-emerald-500/15 rounded border border-emerald-400/30 hover:bg-emerald-500/25">Record Payment</button>
+                      )}
+                    </div>
+                  </td>
+                </tr>
+              ))}
+              {payments.length === 0 && (
+                <tr><td colSpan={5} className="px-4 py-8 text-center text-gray-400">No payment records found.</td></tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      )}
 
       <Pagination page={page} totalPages={totalPages} onPageChange={setPage} />
     </div>

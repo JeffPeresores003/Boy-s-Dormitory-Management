@@ -2,6 +2,8 @@ import { useState } from 'react';
 import api from '../../services/api';
 import toast from 'react-hot-toast';
 import { FaFilePdf, FaFileExcel } from 'react-icons/fa';
+import AdminPageHeader from '../../components/AdminPageHeader';
+import ActionButton from '../../components/ActionButton';
 
 const Reports = () => {
   const [reportType, setReportType] = useState('tenants');
@@ -40,12 +42,10 @@ const Reports = () => {
 
   return (
     <div>
-      <div className="flex items-center justify-between gap-3 mb-6 rounded-2xl border border-slate-700/50 bg-slate-900/45 px-5 py-4">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-100">Reports Center</h1>
-          <p className="text-sm text-slate-400">Generate and export operational reports for the dormitory.</p>
-        </div>
-      </div>
+      <AdminPageHeader
+        title="Reports Center"
+        subtitle="Generate and export operational reports for the dormitory."
+      />
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
         {reportTypes.map(rt => (
@@ -64,14 +64,12 @@ const Reports = () => {
         <h2 className="text-lg font-semibold text-slate-100 mb-2">Export Report: <span className="capitalize">{reportType}</span></h2>
         <p className="text-sm text-slate-400 mb-4">Select a file format to download the report.</p>
         <div className="flex gap-4">
-          <button onClick={() => downloadReport('pdf')} disabled={loading}
-            className="flex items-center gap-2 px-5 py-2.5 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700 disabled:opacity-50 transition-colors">
+          <ActionButton onClick={() => downloadReport('pdf')} disabled={loading} variant="danger" className="px-5 py-2.5">
             <FaFilePdf /> Download PDF
-          </button>
-          <button onClick={() => downloadReport('excel')} disabled={loading}
-            className="flex items-center gap-2 px-5 py-2.5 text-sm font-medium text-white bg-emerald-600 rounded-lg hover:bg-emerald-700 disabled:opacity-50 transition-colors">
+          </ActionButton>
+          <ActionButton onClick={() => downloadReport('excel')} disabled={loading} variant="success" className="px-5 py-2.5">
             <FaFileExcel /> Download Excel
-          </button>
+          </ActionButton>
         </div>
       </div>
     </div>
