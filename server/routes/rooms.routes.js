@@ -119,14 +119,10 @@ router.get("/:id", async (req, res) => {
 // ---------------- Create Room ---------------- //
 router.post("/", async (req, res) => {
   try {
-    const { roomNumber, floor, capacity, type, description } = req.body;
+    const { roomNumber, floor, capacity, description } = req.body;
 
-    if (!roomNumber || !floor || !capacity || !type) {
-      return res.status(400).json({ message: 'Room number, floor, capacity, and type are required' });
-    }
-
-    if (!['single', 'shared'].includes(type)) {
-      return res.status(400).json({ message: 'Type must be single or shared' });
+    if (!roomNumber || !floor || !capacity) {
+      return res.status(400).json({ message: 'Room number, floor, and capacity are required' });
     }
 
     const [existing] = await pool.execute("SELECT id FROM Rooms WHERE roomNumber = ?", [roomNumber]);
@@ -135,8 +131,8 @@ router.post("/", async (req, res) => {
     }
 
     const [result] = await pool.execute(
-      "INSERT INTO Rooms (roomNumber, floor, capacity, type, description, status, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, 'available', NOW(), NOW())",
-      [roomNumber, parseInt(floor), parseInt(capacity), type, description || '']
+      "INSERT INTO Rooms (roomNumber, floor, capacity, description, status, createdAt, updatedAt) VALUES (?, ?, ?, ?, 'available', NOW(), NOW())",
+      [roomNumber, parseInt(floor), parseInt(capacity), description || '']
     );
 
     const [newRoom] = await pool.execute("SELECT * FROM Rooms WHERE id = ?", [result.insertId]);
@@ -156,15 +152,14 @@ router.put("/:id", async (req, res) => {
     }
 
     const room = existing[0];
-    const { roomNumber, floor, capacity, type, status, description } = req.body;
+    const { roomNumber, floor, capacity, status, description } = req.body;
 
     await pool.execute(
-      `UPDATE Rooms SET roomNumber = ?, floor = ?, capacity = ?, type = ?, status = ?, description = ?, updatedAt = NOW() WHERE id = ?`,
+      `UPDATE Rooms SET roomNumber = ?, floor = ?, capacity = ?, status = ?, description = ?, updatedAt = NOW() WHERE id = ?`,
       [
         roomNumber ?? room.roomNumber,
         floor ?? room.floor,
         capacity ?? room.capacity,
-        type ?? room.type,
         status ?? room.status,
         description !== undefined ? description : room.description,
         req.params.id,

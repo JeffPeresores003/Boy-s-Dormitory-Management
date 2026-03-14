@@ -11,38 +11,129 @@ router.use(authorize('admin'));
 // ---------------- Get Dashboard Stats ---------------- //
 router.get("/stats", async (req, res) => {
   try {
-    const [totalTenants] = await pool.execute("SELECT COUNT(*) as count FROM Tenants WHERE status = 'active'");
-    const [totalStudents] = await pool.execute("SELECT COUNT(*) as count FROM Tenants WHERE status = 'active' AND type = 'student'");
-    const [totalStaff] = await pool.execute("SELECT COUNT(*) as count FROM Tenants WHERE status = 'active' AND type = 'staff'");
-    const [totalFaculty] = await pool.execute("SELECT COUNT(*) as count FROM Tenants WHERE status = 'active' AND type = 'faculty'");
-    const [totalRooms] = await pool.execute("SELECT COUNT(*) as count FROM Rooms");
-    const [availableRooms] = await pool.execute("SELECT COUNT(*) as count FROM Rooms WHERE status = 'available'");
-    const [fullRooms] = await pool.execute("SELECT COUNT(*) as count FROM Rooms WHERE status = 'full'");
-    const [maintenanceRooms] = await pool.execute("SELECT COUNT(*) as count FROM Rooms WHERE status = 'maintenance'");
-    const [pendingPayments] = await pool.execute("SELECT COUNT(*) as count FROM Payments WHERE status = 'unpaid'");
-    const [partialPayments] = await pool.execute("SELECT COUNT(*) as count FROM Payments WHERE status = 'partial'");
-    const [activeRequests] = await pool.execute("SELECT COUNT(*) as count FROM MaintenanceRequests WHERE status != 'resolved'");
-    const [todayVisitors] = await pool.execute("SELECT COUNT(*) as count FROM Visitors WHERE DATE(timeIn) = CURDATE()");
-    const [billing] = await pool.execute("SELECT COALESCE(SUM(amount), 0) as totalBilled, COALESCE(SUM(amountPaid), 0) as totalCollected FROM Payments");
+    const [tenantRowsResult, roomRowsResult, paymentRowsResult, visitorRowsResult] = await Promise.all([
+      pool.execute(
+        `SELECT
+          COALESCE(SUM(CASE WHEN status = 'active' THEN 1 ELSE 0 END), 0) AS totalTenants,
+          COALESCE(SUM(CASE WHEN status = 'active' AND type = 'student' THEN 1 ELSE 0 END), 0) AS totalStudents,
+          COALESCE(SUM(CASE WHEN status = 'active' AND type = 'staff' THEN 1 ELSE 0 END), 0) AS totalStaff,
+          COALESCE(SUM(CASE WHEN status = 'active' AND type = 'faculty' THEN 1 ELSE 0 END), 0) AS totalFaculty
+         FROM Tenants`
+      ),
+      pool.execute(
+        `SELECT
+          COUNT(*) AS totalRooms,
+          COALESCE(SUM(CASE WHEN status = 'available' THEN 1 ELSE 0 END), 0) AS availableRooms,
+          COALESCE(SUM(CASE WHEN status = 'full' THEN 1 ELSE 0 END), 0) AS fullRooms,
+          COALESCE(SUM(CASE WHEN status = 'maintenance' THEN 1 ELSE 0 END), 0) AS maintenanceRooms,
+          COALESCE(SUM(CASE WHEN status != 'maintenance' THEN capacity ELSE 0 END), 0) AS totalCapacity
+         FROM Rooms`
+      ),
+      pool.execute(
+        `SELECT
+          COALESCE(SUM(CASE WHEN status = 'unpaid' THEN 1 ELSE 0 END), 0) AS pendingPayments,
+          COALESCE(SUM(CASE WHEN status = 'partial' THEN 1 ELSE 0 END), 0) AS partialPayments,
+          COALESCE(SUM(amount), 0) AS totalBilled,
+          COALESCE(SUM(amountPaid), 0) AS totalCollected,
+          COALESCE(SUM(amount - amountPaid), 0) AS totalBalance
+         FROM Payments`
+      ),
+      pool.execute(
+        "SELECT COUNT(*) AS todayVisitors FROM Visitors WHERE DATE(timeIn) = CURDATE()"
+      ),
+    ]);
+
+    const tenantRows = tenantRowsResult[0][0] || {};
+    const roomRows = roomRowsResult[0][0] || {};
+    const paymentRows = paymentRowsResult[0][0] || {};
+    const visitorRows = visitorRowsResult[0][0] || {};
+
+    const activeTenants  = Number(tenantRows.totalTenants || 0);
+    const totalCapacity  = Number(roomRows.totalCapacity || 0);
+    const totalCollected = Number(paymentRows.totalCollected || 0);
+    const totalBilled    = Number(paymentRows.totalBilled || 0);
+    const occupancyRate  = totalCapacity > 0 ? Math.round((activeTenants / totalCapacity) * 100) : 0;
+    const collectionRate = totalBilled > 0 ? Math.round((totalCollected / totalBilled) * 100) : 0;
 
     res.json({
-      totalTenants: totalTenants[0].count,
-      totalStudents: totalStudents[0].count,
-      totalStaff: totalStaff[0].count,
-      totalFaculty: totalFaculty[0].count,
-      totalRooms: totalRooms[0].count,
-      availableRooms: availableRooms[0].count,
-      fullRooms: fullRooms[0].count,
-      maintenanceRooms: maintenanceRooms[0].count,
-      pendingPayments: pendingPayments[0].count,
-      partialPayments: partialPayments[0].count,
-      activeRequests: activeRequests[0].count,
-      todayVisitors: todayVisitors[0].count,
-      totalBilled: parseFloat(billing[0].totalBilled),
-      totalCollected: parseFloat(billing[0].totalCollected),
+      totalTenants:     activeTenants,
+      totalStudents:    Number(tenantRows.totalStudents || 0),
+      totalStaff:       Number(tenantRows.totalStaff || 0),
+      totalFaculty:     Number(tenantRows.totalFaculty || 0),
+      totalRooms:       Number(roomRows.totalRooms || 0),
+      availableRooms:   Number(roomRows.availableRooms || 0),
+      fullRooms:        Number(roomRows.fullRooms || 0),
+      maintenanceRooms: Number(roomRows.maintenanceRooms || 0),
+      pendingPayments:  Number(paymentRows.pendingPayments || 0),
+      partialPayments:  Number(paymentRows.partialPayments || 0),
+      todayVisitors:    Number(visitorRows.todayVisitors || 0),
+      totalBilled,
+      totalCollected,
+      totalBalance:     Number(paymentRows.totalBalance || 0),
+      occupancyRate,
+      collectionRate,
+      totalCapacity,
     });
   } catch (error) {
     console.error("Get dashboard stats error:", error);
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+});
+
+// ---------------- Monthly Revenue (last 6 months) ---------------- //
+router.get("/analytics/monthly-revenue", async (req, res) => {
+  try {
+    const [rows] = await pool.execute(
+      `SELECT
+        DATE_FORMAT(paymentDate, '%b %Y') as label,
+        YEAR(paymentDate) as yr,
+        MONTH(paymentDate) as mo,
+        COALESCE(SUM(amountPaid), 0) as revenue
+       FROM Payments
+       WHERE paymentDate IS NOT NULL
+         AND paymentDate >= DATE_SUB(CURDATE(), INTERVAL 6 MONTH)
+       GROUP BY yr, mo, label
+       ORDER BY yr ASC, mo ASC`
+    );
+    res.json(rows);
+  } catch (error) {
+    console.error("Monthly revenue error:", error);
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+});
+
+// ---------------- Recent Tenants (last 5) ---------------- //
+router.get("/analytics/recent-tenants", async (req, res) => {
+  try {
+    const [rows] = await pool.execute(
+      `SELECT t.id, t.tenantNumber, t.firstName, t.lastName, t.type, t.status,
+              r.roomNumber
+       FROM Tenants t
+       LEFT JOIN Rooms r ON t.roomId = r.id
+       ORDER BY t.createdAt DESC
+       LIMIT 5`
+    );
+    res.json(rows);
+  } catch (error) {
+    console.error("Recent tenants error:", error);
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+});
+
+// ---------------- Recent Visitors (last 5) ---------------- //
+router.get("/analytics/recent-visitors", async (req, res) => {
+  try {
+    const [rows] = await pool.execute(
+      `SELECT v.id, v.visitorName, v.purpose, v.timeIn, v.timeOut,
+              t.firstName as tenantFirstName, t.lastName as tenantLastName
+       FROM Visitors v
+       LEFT JOIN Tenants t ON v.tenantVisitedId = t.id
+       ORDER BY v.timeIn DESC
+       LIMIT 5`
+    );
+    res.json(rows);
+  } catch (error) {
+    console.error("Recent visitors error:", error);
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 });
@@ -345,20 +436,6 @@ router.get("/reports/:type", async (req, res) => {
             parseFloat(p.amount), parseFloat(p.amountPaid),
             parseFloat(p.amount) - parseFloat(p.amountPaid), p.status,
             p.dueDate ? new Date(p.dueDate).toLocaleDateString() : '',
-          ]),
-        };
-      },
-      maintenance: async () => {
-        const [reqs] = await pool.execute(
-          `SELECT m.*, t.firstName, t.lastName, r.roomNumber FROM MaintenanceRequests m
-           LEFT JOIN Tenants t ON m.tenantId = t.id LEFT JOIN Rooms r ON m.roomId = r.id ORDER BY m.createdAt DESC`
-        );
-        return {
-          title: 'Maintenance Report',
-          headers: ['Title', 'Tenant', 'Room', 'Status', 'Date'],
-          rows: reqs.map(r => [
-            r.title, `${r.firstName || ''} ${r.lastName || ''}`,
-            r.roomNumber || '', r.status, new Date(r.createdAt).toLocaleDateString(),
           ]),
         };
       },

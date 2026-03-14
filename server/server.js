@@ -1,4 +1,4 @@
-require('dotenv').config();
+require('dotenv').config({ path: require('path').join(__dirname, '.env') });
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
@@ -23,8 +23,6 @@ app.use('/api/tenants', require('./routes/tenants.routes'));
 app.use('/api/rooms', require('./routes/rooms.routes'));
 app.use('/api/payments', require('./routes/payments.routes'));
 app.use('/api/visitors', require('./routes/visitors.routes'));
-app.use('/api/maintenance', require('./routes/maintenance.routes'));
-app.use('/api/announcements', require('./routes/announcements.routes'));
 app.use('/api/dashboard', require('./routes/dashboard.routes'));
 
 // Health check
