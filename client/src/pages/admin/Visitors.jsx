@@ -5,6 +5,8 @@ import SearchBar from '../../components/SearchBar';
 import Pagination from '../../components/Pagination';
 import ConfirmModal from '../../components/ConfirmModal';
 import SkeletonList from '../../shared/SkeletonList';
+import AdminPageHeader from '../../components/AdminPageHeader';
+import ActionButton from '../../components/ActionButton';
 
 const Visitors = () => {
   const [visitors, setVisitors] = useState([]);
@@ -17,7 +19,7 @@ const Visitors = () => {
   const [tenants, setTenants] = useState([]);
   const [confirmModal, setConfirmModal] = useState({ open: false, id: null });
   const [form, setForm] = useState({ visitorName: '', tenantVisitedId: '', purpose: '' });
-  const [loading, setLoading] = useState(true);
+ 
 
   const fetchVisitors = useCallback(async () => {
     setLoading(true);
@@ -141,11 +143,11 @@ const Visitors = () => {
                   <td className="px-4 py-3 font-medium">{v.visitorName}</td>
                   <td className="px-4 py-3">{v.tenantVisited ? `${v.tenantVisited.firstName} ${v.tenantVisited.lastName}` : '—'}</td>
                   <td className="px-4 py-3">{v.purpose}</td>
-                  <td className="px-4 py-3">{formatTime(v.checkIn)}</td>
-                  <td className="px-4 py-3">{formatTime(v.checkOut)}</td>
+                  <td className="px-4 py-3">{formatTime(v.timeIn)}</td>
+                  <td className="px-4 py-3">{formatTime(v.timeOut)}</td>
                   <td className="px-4 py-3">
                     <div className="flex gap-2">
-                      {!v.checkOut && (
+                      {!v.timeOut && (
                         <button onClick={() => handleCheckout(v.id)} className="px-2 py-1 text-xs font-medium text-emerald-200 bg-emerald-500/15 rounded border border-emerald-400/30 hover:bg-emerald-500/25">Checkout</button>
                       )}
                       <button onClick={() => setConfirmModal({ open: true, id: v.id })} className="px-2 py-1 text-xs font-medium text-red-200 bg-red-500/15 rounded border border-red-400/30 hover:bg-red-500/25">Delete</button>

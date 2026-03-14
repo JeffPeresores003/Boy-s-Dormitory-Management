@@ -13,7 +13,11 @@ const Welcome = () => {
     return () => clearTimeout(timer);
   }, [navigate]);
 
-  return <WelcomeLoading />;
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-white">
+      <WelcomeLoading />
+    </div>
+  );
 };
 
 export default Welcome;

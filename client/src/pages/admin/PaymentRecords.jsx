@@ -4,6 +4,9 @@ import toast from 'react-hot-toast';
 import SearchBar from '../../components/SearchBar';
 import Pagination from '../../components/Pagination';
 import SkeletonList from '../../shared/SkeletonList';
+import AdminPageHeader from '../../components/AdminPageHeader';
+import ActionButton from '../../components/ActionButton';
+
 
 const statusColors = {
   paid: 'bg-green-100 text-green-700',
@@ -30,7 +33,7 @@ const PaymentRecords = () => {
   const [statusFilter, setStatusFilter] = useState('');
   const [monthFilter, setMonthFilter] = useState('');
   const [showBilling, setShowBilling] = useState(null);
-  const [loading, setLoading] = useState(true);
+ 
 
   const fetchRecords = useCallback(async () => {
     setLoading(true);

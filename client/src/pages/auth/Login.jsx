@@ -23,36 +23,6 @@ const Login = () => {
   const [showWelcome, setShowWelcome] = useState(false);
   const { login } = useAuth();
   const navigate = useNavigate();
-  const emailRef = useRef(null);
-  const passwordRef = useRef(null);
-  const errorSummaryRef = useRef(null);
-
-  const validate = () => {
-    const nextErrors = { email: '', password: '' };
-    const normalizedEmail = email.trim();
-
-    if (!normalizedEmail) {
-      nextErrors.email = 'Enter your email address.';
-    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) {
-      nextErrors.email = 'Enter a valid email format, such as name@example.com.';
-    }
-
-    if (!password) {
-      nextErrors.password = 'Enter your password.';
-    }
-
-    return nextErrors;
-  };
-
-  const focusFirstInvalid = (nextErrors) => {
-    if (nextErrors.email) {
-      emailRef.current?.focus();
-      return;
-    }
-    if (nextErrors.password) {
-      passwordRef.current?.focus();
-    }
-  };
 
   useEffect(() => {
     localStorage.setItem('loginEmail', email);
@@ -60,28 +30,17 @@ const Login = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (loading) return;
-
-    const nextErrors = validate();
-    setErrors(nextErrors);
-    setFormError('');
-
-    if (nextErrors.email || nextErrors.password) {
-      if (nextErrors.email && nextErrors.password) {
-        errorSummaryRef.current?.focus();
-      }
-      focusFirstInvalid(nextErrors);
+    if (!email || !password) {
+      toast.error('Please enter both your email address and password.');
       return;
     }
-
     setLoading(true);
     try {
-      await login(email.trim(), password);
+      await login(email, password);
       toast.success('Signed in successfully.');
       navigate('/welcome');
     } catch (err) {
-      const message = err.response?.data?.message || 'Unable to sign in.';
-      setFormError(message);
+      toast.error(err.response?.data?.message || 'Unable to sign in.');
     } finally {
       setLoading(false);
     }
@@ -89,7 +48,7 @@ const Login = () => {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-primary-900 via-primary-800 to-primary-700 px-4 dark:bg-[#0a1627]">
-      <div className="w-full max-w-4xl bg-white rounded-2xl shadow-2xl flex flex-col md:flex-row overflow-hidden pop-bounce" style={{background: 'linear-gradient(135deg, #e0f7fa 0%, #ffffff 100%)'}}>
+      <div className="w-full max-w-4xl bg-white rounded-2xl shadow-2xl flex flex-col md:flex-row overflow-hidden" style={{background: 'linear-gradient(135deg, #e0f7fa 0%, #ffffff 100%)'}}>
         {/* Left: Logo and Title with curve */}
         <div className="flex flex-col items-center justify-center md:w-1/2 w-full py-12 px-8 bg-gradient-to-br from-cyan-400 to-cyan-600 rounded-ee-[120px] rounded-se-[120px]">
           <img src="/Bisu.png" alt="BISU Logo" className="w-24 h-24 rounded-full mb-6 object-cover shadow-md border-4 border-white" />

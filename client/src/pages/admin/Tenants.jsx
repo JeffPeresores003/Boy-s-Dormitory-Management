@@ -5,11 +5,12 @@ import SearchBar from '../../components/SearchBar';
 import Pagination from '../../components/Pagination';
 import ConfirmModal from '../../components/ConfirmModal';
 import SkeletonList from '../../shared/SkeletonList';
+import AdminPageHeader from '../../components/AdminPageHeader';
+import ActionButton from '../../components/ActionButton';
 
 const Tenants = () => {
   const [tenants, setTenants] = useState([]);
   const [rooms, setRooms] = useState([]);
-  const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [search, setSearch] = useState('');
@@ -26,15 +27,12 @@ const Tenants = () => {
   });
 
   const fetchTenants = useCallback(async () => {
-    setLoading(true);
     try {
       const res = await api.get('/tenants', { params: { page, limit: 5, search, status: statusFilter, type: typeFilter } });
       setTenants(res.data.tenants);
       setTotalPages(res.data.totalPages);
     } catch {
       toast.error('Unable to load tenant records.');
-    } finally {
-      setLoading(false);
     }
   }, [page, search, statusFilter, typeFilter]);
 
@@ -123,15 +121,15 @@ const Tenants = () => {
 
   return (
     <div>
-      <AdminPageHeader
-        title="Tenant Management"
-        subtitle="Manage tenant records, assignments, and onboarding details."
-        actions={
-          <ActionButton variant="success" onClick={() => { resetForm(); setShowForm(true); }}>
-            + Add Tenant
-          </ActionButton>
-        }
-      />
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6 rounded-2xl border border-slate-700/50 bg-slate-900/45 px-5 py-4">
+        <div>
+          <h1 className="text-2xl font-bold text-slate-100">Tenant Management</h1>
+          <p className="text-sm text-slate-400">Manage tenant records, assignments, and onboarding details.</p>
+        </div>
+        <button onClick={() => { resetForm(); setShowForm(true); }} className="px-4 py-2 bg-emerald-500 text-white rounded-lg hover:bg-emerald-600 text-sm font-medium transition-colors">
+          + Add Tenant
+        </button>
+      </div>
 
       <div className="flex flex-col sm:flex-row gap-3 mb-4">
         <div className="flex-1"><SearchBar value={search} onChange={(v) => { setSearch(v); setPage(1); }} placeholder="Search tenant records..." /></div>
@@ -232,8 +230,8 @@ const Tenants = () => {
                 </>
               )}
               <div className="sm:col-span-2 flex justify-end gap-3 mt-2">
-                <ActionButton type="button" variant="neutral" onClick={resetForm}>Cancel</ActionButton>
-                <ActionButton type="submit">{editingId ? 'Save Changes' : 'Create Tenant'}</ActionButton>
+                <button type="button" onClick={resetForm} className="px-4 py-2 text-sm text-slate-200 bg-slate-800 rounded-lg hover:bg-slate-700">Cancel</button>
+                <button type="submit" className="px-4 py-2 text-sm text-white bg-primary-600 rounded-lg hover:bg-primary-700">{editingId ? 'Save Changes' : 'Create Tenant'}</button>
               </div>
             </form>
           </div>

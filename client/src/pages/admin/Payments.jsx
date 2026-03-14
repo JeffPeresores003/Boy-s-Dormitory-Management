@@ -1,9 +1,11 @@
 import { useState, useEffect, useCallback } from 'react';
 import api from '../../services/api';
+import AdminPageHeader from '../../components/AdminPageHeader';
 import toast from 'react-hot-toast';
 import SearchBar from '../../components/SearchBar';
 import Pagination from '../../components/Pagination';
 import SkeletonList from '../../shared/SkeletonList';
+import ActionButton from '../../components/ActionButton';
 
 const statusColors = {
   paid: 'bg-green-100 text-green-700',
@@ -28,7 +30,7 @@ const Payments = () => {
   const [createYear, setCreateYear] = useState(now.getFullYear());
   const [createMonth, setCreateMonth] = useState(now.getMonth() + 1);
   const [creating, setCreating] = useState(false);
-  const [loading, setLoading] = useState(true);
+
 
   // Derive billing cycle label from the current payments data
   const billingLabel = (() => {
