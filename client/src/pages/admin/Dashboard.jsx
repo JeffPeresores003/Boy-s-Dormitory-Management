@@ -11,6 +11,7 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell, Legend,
 } from 'recharts';
+import SkeletonDashboard from '../../shared/SkeletonDashboard';
 
 const COLORS = ['#16a34a', '#ef4444', '#f59e0b', '#8b5cf6', '#2563eb'];
 
@@ -80,11 +81,7 @@ const AdminDashboard = () => {
   }, []);
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-primary-600" />
-      </div>
-    );
+    return <SkeletonDashboard />;
   }
 
   if (!stats) {

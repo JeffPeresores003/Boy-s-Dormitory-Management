@@ -1,5 +1,8 @@
 import { NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { useState } from 'react';
+import ConfirmModal from './ConfirmModal';
+import LogoutLoadingModal from '../shared/LogoutLoadingModal';
 import {
   HiOutlineHome, HiOutlineUserGroup, HiOutlineOfficeBuilding, HiOutlineCash,
   HiOutlineClipboardList, HiOutlineChartBar, HiOutlineX, HiOutlineViewList, HiOutlineLogout,
@@ -15,14 +18,13 @@ const adminLinks = [
   { to: '/admin/reports', label: 'Reports', icon: HiOutlineChartBar },
 ];
 
-const Sidebar = ({ open, onClose }) => {
+const Sidebar = ({ open, onClose, showConfirm, setShowConfirm, showLoading, setShowLoading }) => {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const links = adminLinks;
 
-  const handleLogout = () => {
-    logout();
-    navigate('/login');
+  const handleLogoutClick = () => {
+    setShowConfirm(true);
   };
 
   return (
@@ -74,26 +76,17 @@ const Sidebar = ({ open, onClose }) => {
             ))}
           </nav>
 
-          <div className="mx-3 mb-3 mt-2 rounded-xl border border-slate-700/60 bg-slate-800/55 p-3">
-            <div className="flex items-center gap-3">
-              <div className="h-9 w-9 rounded-full bg-blue-500/30 text-blue-100 flex items-center justify-center text-sm font-semibold">
-                {(user?.name || 'U').charAt(0).toUpperCase()}
-              </div>
-              <div className="min-w-0">
-                <p className="truncate text-sm font-semibold text-slate-100">{user?.name || 'User'}</p>
-                <p className="text-xs text-slate-400 capitalize">{user?.role || 'admin'}</p>
-              </div>
-            </div>
-          </div>
+          {/* Removed Admin section from sidebar navigation bar as requested */}
 
           <div className="px-3 pb-4">
             <button
-              onClick={handleLogout}
+              onClick={handleLogoutClick}
               className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-slate-300 hover:bg-red-500/15 hover:text-red-300 border border-slate-700/60 transition-colors"
             >
               <HiOutlineLogout className="w-5 h-5" />
               Logout
             </button>
+            {/* Modals are now rendered in Layout for global centering */}
           </div>
         </div>
       </aside>

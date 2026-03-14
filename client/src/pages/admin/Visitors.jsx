@@ -4,6 +4,7 @@ import toast from 'react-hot-toast';
 import SearchBar from '../../components/SearchBar';
 import Pagination from '../../components/Pagination';
 import ConfirmModal from '../../components/ConfirmModal';
+import SkeletonList from '../../shared/SkeletonList';
 
 const Visitors = () => {
   const [visitors, setVisitors] = useState([]);
@@ -15,6 +16,7 @@ const Visitors = () => {
   const [tenants, setTenants] = useState([]);
   const [confirmModal, setConfirmModal] = useState({ open: false, id: null });
   const [form, setForm] = useState({ visitorName: '', tenantVisitedId: '', purpose: '' });
+  const [loading, setLoading] = useState(true);
 
   const fetchVisitors = useCallback(async () => {
     try {
@@ -24,7 +26,10 @@ const Visitors = () => {
     } catch { toast.error('Unable to load visitor records.'); }
   }, [page, search, dateFilter]);
 
-  useEffect(() => { fetchVisitors(); }, [fetchVisitors]);
+  useEffect(() => {
+    setLoading(true);
+    fetchVisitors().finally(() => setLoading(false));
+  }, [fetchVisitors]);
 
   const openCreate = async () => {
     try {
@@ -113,39 +118,46 @@ const Visitors = () => {
         </div>
       )}
 
+      {/* Table */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead className="bg-gray-50 border-b border-gray-200">
-            <tr>
-              <th className="text-left px-4 py-3 font-medium text-gray-600">Visitor</th>
-              <th className="text-left px-4 py-3 font-medium text-gray-600">Tenant Visited</th>
-              <th className="text-left px-4 py-3 font-medium text-gray-600 hidden md:table-cell">Purpose</th>
-              <th className="text-left px-4 py-3 font-medium text-gray-600">Time In</th>
-              <th className="text-left px-4 py-3 font-medium text-gray-600">Time Out</th>
-              <th className="text-left px-4 py-3 font-medium text-gray-600">Actions</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-100">
-            {visitors.map(v => (
-              <tr key={v.id} className="hover:bg-gray-50">
-                <td className="px-4 py-3 font-medium">{v.visitorName}</td>
-                <td className="px-4 py-3">{v.tenantVisited ? `${v.tenantVisited.firstName} ${v.tenantVisited.lastName}` : '—'}</td>
-                <td className="px-4 py-3 hidden md:table-cell">{v.purpose}</td>
-                <td className="px-4 py-3 text-xs">{formatTime(v.timeIn)}</td>
-                <td className="px-4 py-3 text-xs">{v.timeOut ? formatTime(v.timeOut) : <span className="text-amber-300 font-medium">On Site</span>}</td>
-                <td className="px-4 py-3">
-                  <div className="flex gap-2">
-                    {!v.timeOut && <button onClick={() => handleCheckout(v.id)} className="text-green-600 hover:underline text-xs">Check Out</button>}
-                    <button onClick={() => setConfirmModal({ open: true, id: v.id })} className="text-red-600 hover:underline text-xs">Delete</button>
-                  </div>
-                </td>
+        {loading ? (
+          <SkeletonList count={5} />
+        ) : (
+          <table className="w-full text-sm">
+            <thead className="bg-gray-50 border-b border-gray-200">
+              <tr>
+                <th className="text-left px-4 py-3 font-medium text-gray-600">Visitor</th>
+                <th className="text-left px-4 py-3 font-medium text-gray-600">Tenant Visited</th>
+                <th className="text-left px-4 py-3 font-medium text-gray-600">Purpose</th>
+                <th className="text-left px-4 py-3 font-medium text-gray-600">Check-in</th>
+                <th className="text-left px-4 py-3 font-medium text-gray-600">Check-out</th>
+                <th className="text-left px-4 py-3 font-medium text-gray-600">Actions</th>
               </tr>
-            ))}
-            {visitors.length === 0 && (
-              <tr><td colSpan={6} className="px-4 py-8 text-center text-gray-400">No visitor records found.</td></tr>
-            )}
-          </tbody>
-        </table>
+            </thead>
+            <tbody className="divide-y divide-gray-100">
+              {visitors.map(v => (
+                <tr key={v.id} className="hover:bg-gray-50">
+                  <td className="px-4 py-3 font-medium">{v.visitorName}</td>
+                  <td className="px-4 py-3">{v.tenantVisited ? `${v.tenantVisited.firstName} ${v.tenantVisited.lastName}` : '—'}</td>
+                  <td className="px-4 py-3">{v.purpose}</td>
+                  <td className="px-4 py-3">{formatTime(v.checkIn)}</td>
+                  <td className="px-4 py-3">{formatTime(v.checkOut)}</td>
+                  <td className="px-4 py-3">
+                    <div className="flex gap-2">
+                      {!v.checkOut && (
+                        <button onClick={() => handleCheckout(v.id)} className="px-2 py-1 text-xs font-medium text-emerald-200 bg-emerald-500/15 rounded border border-emerald-400/30 hover:bg-emerald-500/25">Checkout</button>
+                      )}
+                      <button onClick={() => setConfirmModal({ open: true, id: v.id })} className="px-2 py-1 text-xs font-medium text-red-200 bg-red-500/15 rounded border border-red-400/30 hover:bg-red-500/25">Delete</button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+              {visitors.length === 0 && (
+                <tr><td colSpan={6} className="px-4 py-8 text-center text-gray-400">No visitor records found.</td></tr>
+              )}
+            </tbody>
+          </table>
+        )}
       </div>
 
       <Pagination page={page} totalPages={totalPages} onPageChange={setPage} />

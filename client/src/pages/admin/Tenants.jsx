@@ -4,6 +4,7 @@ import toast from 'react-hot-toast';
 import SearchBar from '../../components/SearchBar';
 import Pagination from '../../components/Pagination';
 import ConfirmModal from '../../components/ConfirmModal';
+import SkeletonList from '../../shared/SkeletonList';
 
 const Tenants = () => {
   const [tenants, setTenants] = useState([]);
@@ -25,7 +26,7 @@ const Tenants = () => {
 
   const fetchTenants = useCallback(async () => {
     try {
-      const res = await api.get('/tenants', { params: { page, limit: 10, search, status: statusFilter, type: typeFilter } });
+      const res = await api.get('/tenants', { params: { page, limit: 5, search, status: statusFilter, type: typeFilter } });
       setTenants(res.data.tenants);
       setTotalPages(res.data.totalPages);
     } catch {
@@ -40,7 +41,11 @@ const Tenants = () => {
     } catch { /* rooms will be empty */ }
   }, []);
 
-  useEffect(() => { fetchTenants(); }, [fetchTenants]);
+  const [loading, setLoading] = useState(true);
+  useEffect(() => {
+    setLoading(true);
+    fetchTenants().finally(() => setLoading(false));
+  }, [fetchTenants]);
   useEffect(() => { fetchRooms(); }, [fetchRooms]);
 
   const availableRooms = rooms.filter(r => r.status === 'available');
@@ -233,51 +238,53 @@ const Tenants = () => {
 
       {/* Table */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead className="bg-gray-50 border-b border-gray-200">
-            <tr>
-              <th className="text-left px-4 py-3 font-medium text-slate-300">Tenant ID</th>
-              <th className="text-left px-4 py-3 font-medium text-slate-300">Name</th>
-              <th className="text-left px-4 py-3 font-medium text-slate-300">Type</th>
-              <th className="text-left px-4 py-3 font-medium text-slate-300 hidden md:table-cell">Department</th>
-              <th className="text-left px-4 py-3 font-medium text-slate-300">Room</th>
-              <th className="text-left px-4 py-3 font-medium text-slate-300">Status</th>
-              <th className="text-left px-4 py-3 font-medium text-slate-300">Actions</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-100">
-            {tenants.map(t => (
-              <tr key={t.id} className="hover:bg-gray-50">
-                <td className="px-4 py-3 text-gray-500 font-mono text-xs">{t.tenantNumber}</td>
-                <td className="px-4 py-3 font-medium">{t.firstName} {t.lastName}</td>
-                <td className="px-4 py-3">
-                  <span className={`px-2 py-1 rounded-full text-xs font-medium capitalize ${typeColors[t.type]}`}>
-                    {t.type}
-                  </span>
-                </td>
-                <td className="px-4 py-3 hidden md:table-cell">{t.department || '—'}</td>
-                <td className="px-4 py-3">{t.room?.roomNumber || '—'}</td>
-                <td className="px-4 py-3">
-                  <span className={`px-2 py-1 rounded-full text-xs font-medium ${t.status === 'active' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>
-                    {t.status}
-                  </span>
-                </td>
-                <td className="px-4 py-3">
-                  <div className="flex gap-2">
-                    <button onClick={() => handleEdit(t)} className="text-primary-600 hover:underline text-xs">Edit</button>
-                    {t.status === 'active' && (
-                      <button onClick={() => setConfirmModal({ open: true, id: t.id })} className="text-yellow-600 hover:underline text-xs">Archive</button>
-                    )}
-                    <button onClick={() => setDeleteModal({ open: true, id: t.id, name: `${t.firstName} ${t.lastName}` })} className="text-red-600 hover:underline text-xs">Delete</button>
-                  </div>
-                </td>
+        {loading ? <SkeletonList count={5} /> : (
+          <table className="w-full text-sm">
+            <thead className="bg-gray-50 border-b border-gray-200">
+              <tr>
+                <th className="text-left px-4 py-3 font-medium text-slate-300">Tenant ID</th>
+                <th className="text-left px-4 py-3 font-medium text-slate-300">Name</th>
+                <th className="text-left px-4 py-3 font-medium text-slate-300">Type</th>
+                <th className="text-left px-4 py-3 font-medium text-slate-300 hidden md:table-cell">Department</th>
+                <th className="text-left px-4 py-3 font-medium text-slate-300">Room</th>
+                <th className="text-left px-4 py-3 font-medium text-slate-300">Status</th>
+                <th className="text-left px-4 py-3 font-medium text-slate-300">Actions</th>
               </tr>
-            ))}
-            {tenants.length === 0 && (
-              <tr><td colSpan={7} className="px-4 py-8 text-center text-gray-400">No tenant records found.</td></tr>
-            )}
-          </tbody>
-        </table>
+            </thead>
+            <tbody className="divide-y divide-gray-100">
+              {tenants.map(t => (
+                <tr key={t.id} className="hover:bg-gray-50">
+                  <td className="px-4 py-3 text-gray-500 font-mono text-xs">{t.tenantNumber}</td>
+                  <td className="px-4 py-3 font-medium">{t.firstName} {t.lastName}</td>
+                  <td className="px-4 py-3">
+                    <span className={`px-2 py-1 rounded-full text-xs font-medium capitalize ${typeColors[t.type]}`}>
+                      {t.type}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3 hidden md:table-cell">{t.department || '—'}</td>
+                  <td className="px-4 py-3">{t.room?.roomNumber || '—'}</td>
+                  <td className="px-4 py-3">
+                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${t.status === 'active' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>
+                      {t.status}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3">
+                    <div className="flex gap-2">
+                      <button onClick={() => handleEdit(t)} className="text-primary-600 hover:underline text-xs">Edit</button>
+                      {t.status === 'active' && (
+                        <button onClick={() => setConfirmModal({ open: true, id: t.id })} className="text-yellow-600 hover:underline text-xs">Archive</button>
+                      )}
+                      <button onClick={() => setDeleteModal({ open: true, id: t.id, name: `${t.firstName} {t.lastName}` })} className="text-red-600 hover:underline text-xs">Delete</button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+              {tenants.length === 0 && (
+                <tr><td colSpan={7} className="px-4 py-8 text-center text-gray-400">No tenant records found.</td></tr>
+              )}
+            </tbody>
+          </table>
+        )}
       </div>
 
       <Pagination page={page} totalPages={totalPages} onPageChange={setPage} />

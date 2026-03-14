@@ -20,19 +20,15 @@ const Navbar = ({ onMenuClick }) => {
         <HiOutlineMenu className="w-6 h-6" />
       </button>
 
-      <div className="hidden md:block min-w-[280px]">
-        <h2 className="text-sm font-semibold text-slate-200">{now}</h2>
+      <div className="hidden lg:flex flex-1 max-w-md items-center justify-center">
+        <h1 className="text-2xl font-extrabold text-primary-200 tracking-wider text-center w-full bg-gradient-to-r from-primary-700 via-primary-400 to-primary-700 bg-clip-text text-transparent drop-shadow-lg">
+          BISU Boy's Dorm Management
+        </h1>
       </div>
 
-      <div className="hidden lg:flex flex-1 max-w-md">
-        <div className="relative w-full">
-          <HiOutlineSearch className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-500" />
-          <input
-            type="text"
-            placeholder="Search..."
-            className="w-full bg-slate-900/65 border border-slate-700/70 rounded-xl pl-10 pr-4 py-2.5 text-sm text-slate-100 placeholder-slate-500 outline-none focus:border-blue-400/50"
-            readOnly
-          />
+      <div className="hidden md:block min-w-[280px] text-right">
+        <div className="inline-block px-4 py-2 rounded-xl bg-slate-900/70 border border-slate-700/60 shadow-md">
+          <h2 className="text-sm font-semibold text-primary-300 tracking-wide">{now}</h2>
         </div>
       </div>
 

@@ -3,6 +3,7 @@ import api from '../../services/api';
 import toast from 'react-hot-toast';
 import SearchBar from '../../components/SearchBar';
 import Pagination from '../../components/Pagination';
+import SkeletonList from '../../shared/SkeletonList';
 
 const statusColors = {
   paid: 'bg-green-100 text-green-700',
@@ -26,6 +27,7 @@ const Payments = () => {
   const [createYear, setCreateYear] = useState(now.getFullYear());
   const [createMonth, setCreateMonth] = useState(now.getMonth() + 1);
   const [creating, setCreating] = useState(false);
+  const [loading, setLoading] = useState(true);
 
   // Derive billing cycle label from the current payments data
   const billingLabel = (() => {
@@ -43,7 +45,10 @@ const Payments = () => {
     } catch { toast.error('Unable to load payment records.'); }
   }, [page, search, statusFilter]);
 
-  useEffect(() => { fetchPayments(); }, [fetchPayments]);
+  useEffect(() => {
+    setLoading(true);
+    fetchPayments().finally(() => setLoading(false));
+  }, [fetchPayments]);
 
   const handleCreateBatch = async () => {
     setCreating(true);
@@ -227,40 +232,44 @@ const Payments = () => {
 
       {/* Table */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead className="bg-gray-50 border-b border-gray-200">
-            <tr>
-              <th className="text-left px-4 py-3 font-medium text-gray-600">Tenant</th>
-              <th className="text-left px-4 py-3 font-medium text-gray-600">Amount</th>
-              <th className="text-left px-4 py-3 font-medium text-gray-600">Status</th>
-              <th className="text-left px-4 py-3 font-medium text-gray-600 hidden lg:table-cell">Due Date</th>
-              <th className="text-left px-4 py-3 font-medium text-gray-600">Actions</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-100">
-            {payments.map(p => (
-              <tr key={p.id} className="hover:bg-gray-50">
-                <td className="px-4 py-3 font-medium">{p.tenant ? `${p.tenant.firstName} ${p.tenant.lastName}` : '—'}</td>
-                <td className="px-4 py-3">₱{parseFloat(p.amount).toLocaleString()}</td>
-                <td className="px-4 py-3">
-                  <span className={`px-2 py-1 rounded-full text-xs font-medium capitalize ${statusColors[p.status]}`}>{p.status}</span>
-                </td>
-                <td className="px-4 py-3 hidden lg:table-cell">{p.dueDate}</td>
-                <td className="px-4 py-3">
-                  <div className="flex gap-2">
-                    <button onClick={() => setShowBilling(p)} className="px-2 py-1 text-xs font-medium text-blue-200 bg-blue-500/15 rounded border border-blue-400/30 hover:bg-blue-500/25">View Statement</button>
-                    {p.status !== 'paid' && (
-                      <button onClick={() => handleMarkPaid(p)} className="px-2 py-1 text-xs font-medium text-emerald-200 bg-emerald-500/15 rounded border border-emerald-400/30 hover:bg-emerald-500/25">Record Payment</button>
-                    )}
-                  </div>
-                </td>
+        {loading ? (
+          <SkeletonList count={5} />
+        ) : (
+          <table className="w-full text-sm">
+            <thead className="bg-gray-50 border-b border-gray-200">
+              <tr>
+                <th className="text-left px-4 py-3 font-medium text-gray-600">Tenant</th>
+                <th className="text-left px-4 py-3 font-medium text-gray-600">Amount</th>
+                <th className="text-left px-4 py-3 font-medium text-gray-600">Status</th>
+                <th className="text-left px-4 py-3 font-medium text-gray-600 hidden lg:table-cell">Due Date</th>
+                <th className="text-left px-4 py-3 font-medium text-gray-600">Actions</th>
               </tr>
-            ))}
-            {payments.length === 0 && (
-              <tr><td colSpan={5} className="px-4 py-8 text-center text-gray-400">No payment records found.</td></tr>
-            )}
-          </tbody>
-        </table>
+            </thead>
+            <tbody className="divide-y divide-gray-100">
+              {payments.map(p => (
+                <tr key={p.id} className="hover:bg-gray-50">
+                  <td className="px-4 py-3 font-medium">{p.tenant ? `${p.tenant.firstName} ${p.tenant.lastName}` : '—'}</td>
+                  <td className="px-4 py-3">₱{parseFloat(p.amount).toLocaleString()}</td>
+                  <td className="px-4 py-3">
+                    <span className={`px-2 py-1 rounded-full text-xs font-medium capitalize ${statusColors[p.status]}`}>{p.status}</span>
+                  </td>
+                  <td className="px-4 py-3 hidden lg:table-cell">{p.dueDate}</td>
+                  <td className="px-4 py-3">
+                    <div className="flex gap-2">
+                      <button onClick={() => setShowBilling(p)} className="px-2 py-1 text-xs font-medium text-blue-200 bg-blue-500/15 rounded border border-blue-400/30 hover:bg-blue-500/25">View Statement</button>
+                      {p.status !== 'paid' && (
+                        <button onClick={() => handleMarkPaid(p)} className="px-2 py-1 text-xs font-medium text-emerald-200 bg-emerald-500/15 rounded border border-emerald-400/30 hover:bg-emerald-500/25">Record Payment</button>
+                      )}
+                    </div>
+                  </td>
+                </tr>
+              ))}
+              {payments.length === 0 && (
+                <tr><td colSpan={5} className="px-4 py-8 text-center text-gray-400">No payment records found.</td></tr>
+              )}
+            </tbody>
+          </table>
+        )}
       </div>
 
       <Pagination page={page} totalPages={totalPages} onPageChange={setPage} />

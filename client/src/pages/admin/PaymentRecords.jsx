@@ -3,6 +3,7 @@ import api from '../../services/api';
 import toast from 'react-hot-toast';
 import SearchBar from '../../components/SearchBar';
 import Pagination from '../../components/Pagination';
+import SkeletonList from '../../shared/SkeletonList';
 
 const statusColors = {
   paid: 'bg-green-100 text-green-700',
@@ -28,6 +29,7 @@ const PaymentRecords = () => {
   const [statusFilter, setStatusFilter] = useState('');
   const [monthFilter, setMonthFilter] = useState('');
   const [showBilling, setShowBilling] = useState(null);
+  const [loading, setLoading] = useState(true);
 
   const fetchRecords = useCallback(async () => {
     try {
@@ -39,7 +41,10 @@ const PaymentRecords = () => {
     } catch { toast.error('Unable to load payment history.'); }
   }, [page, search, statusFilter, monthFilter]);
 
-  useEffect(() => { fetchRecords(); }, [fetchRecords]);
+  useEffect(() => {
+    setLoading(true);
+    fetchRecords().finally(() => setLoading(false));
+  }, [fetchRecords]);
 
   const handleMarkPaid = async (payment) => {
     const remaining = parseFloat(payment.amount) - parseFloat(payment.amountPaid);
@@ -166,44 +171,48 @@ const PaymentRecords = () => {
       )}
 
       <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead className="bg-gray-50 border-b border-gray-200">
-            <tr>
-              <th className="text-left px-4 py-3 font-medium text-gray-600">Tenant</th>
-              <th className="text-left px-4 py-3 font-medium text-gray-600">Month</th>
-              <th className="text-left px-4 py-3 font-medium text-gray-600">Amount</th>
-              <th className="text-left px-4 py-3 font-medium text-gray-600">Status</th>
-              <th className="text-left px-4 py-3 font-medium text-gray-600 hidden md:table-cell">Due Date</th>
-              <th className="text-left px-4 py-3 font-medium text-gray-600 hidden md:table-cell">Paid Date</th>
-              <th className="text-left px-4 py-3 font-medium text-gray-600">Actions</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-100">
-            {records.map(p => (
-              <tr key={p.id} className="hover:bg-gray-50">
-                <td className="px-4 py-3 font-medium">{p.tenant ? `${p.tenant.firstName} ${p.tenant.lastName}` : '—'}</td>
-                <td className="px-4 py-3 text-gray-600">{fmtMonth(p.dueDate)}</td>
-                <td className="px-4 py-3">₱{parseFloat(p.amount).toLocaleString()}</td>
-                <td className="px-4 py-3">
-                  <span className={`px-2 py-1 rounded-full text-xs font-medium capitalize ${statusColors[p.status]}`}>{p.status}</span>
-                </td>
-                <td className="px-4 py-3 hidden md:table-cell text-gray-600">{fmtDate(p.dueDate)}</td>
-                <td className="px-4 py-3 hidden md:table-cell text-gray-600">{p.paymentDate ? fmtDate(p.paymentDate) : '—'}</td>
-                <td className="px-4 py-3">
-                  <div className="flex gap-2">
-                    <button onClick={() => setShowBilling(p)} className="px-2 py-1 text-xs font-medium text-blue-200 bg-blue-500/15 rounded border border-blue-400/30 hover:bg-blue-500/25">View Statement</button>
-                    {p.status !== 'paid' && (
-                      <button onClick={() => handleMarkPaid(p)} className="px-2 py-1 text-xs font-medium text-emerald-200 bg-emerald-500/15 rounded border border-emerald-400/30 hover:bg-emerald-500/25">Record Payment</button>
-                    )}
-                  </div>
-                </td>
+        {loading ? (
+          <SkeletonList count={5} />
+        ) : (
+          <table className="w-full text-sm">
+            <thead className="bg-gray-50 border-b border-gray-200">
+              <tr>
+                <th className="text-left px-4 py-3 font-medium text-gray-600">Tenant</th>
+                <th className="text-left px-4 py-3 font-medium text-gray-600">Description</th>
+                <th className="text-left px-4 py-3 font-medium text-gray-600">Amount</th>
+                <th className="text-left px-4 py-3 font-medium text-gray-600">Status</th>
+                <th className="text-left px-4 py-3 font-medium text-gray-600">Due Date</th>
+                <th className="text-left px-4 py-3 font-medium text-gray-600">Receipt No.</th>
+                <th className="text-left px-4 py-3 font-medium text-gray-600">Actions</th>
               </tr>
-            ))}
-            {records.length === 0 && (
-              <tr><td colSpan={7} className="px-4 py-8 text-center text-gray-400">No payment history records found.</td></tr>
-            )}
-          </tbody>
-        </table>
+            </thead>
+            <tbody className="divide-y divide-gray-100">
+              {records.map(p => (
+                <tr key={p.id} className="hover:bg-gray-50">
+                  <td className="px-4 py-3 font-medium">{p.tenant ? `${p.tenant.firstName} ${p.tenant.lastName}` : '—'}</td>
+                  <td className="px-4 py-3">{p.description || 'Monthly Dormitory Fee'}</td>
+                  <td className="px-4 py-3">₱{parseFloat(p.amount).toLocaleString()}</td>
+                  <td className="px-4 py-3">
+                    <span className={`px-2 py-1 rounded-full text-xs font-medium capitalize ${statusColors[p.status]}`}>{p.status}</span>
+                  </td>
+                  <td className="px-4 py-3">{p.dueDate || '—'}</td>
+                  <td className="px-4 py-3">{p.receiptNumber || '—'}</td>
+                  <td className="px-4 py-3">
+                    <div className="flex gap-2">
+                      <button onClick={() => setShowBilling(p)} className="px-2 py-1 text-xs font-medium text-blue-200 bg-blue-500/15 rounded border border-blue-400/30 hover:bg-blue-500/25">View Statement</button>
+                      {p.status !== 'paid' && (
+                        <button onClick={() => handleMarkPaid(p)} className="px-2 py-1 text-xs font-medium text-emerald-200 bg-emerald-500/15 rounded border border-emerald-400/30 hover:bg-emerald-500/25">Record Payment</button>
+                      )}
+                    </div>
+                  </td>
+                </tr>
+              ))}
+              {records.length === 0 && (
+                <tr><td colSpan={7} className="px-4 py-8 text-center text-gray-400">No payment records found.</td></tr>
+              )}
+            </tbody>
+          </table>
+        )}
       </div>
 
       <Pagination page={page} totalPages={totalPages} onPageChange={setPage} />
