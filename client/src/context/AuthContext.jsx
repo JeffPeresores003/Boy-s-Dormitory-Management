@@ -10,8 +10,9 @@ const DASHBOARD_VISITORS_CACHE_KEY = 'admin_dashboard_visitors_cache_v1';
 export const useAuth = () => useContext(AuthContext);
 
 export const AuthProvider = ({ children }) => {
+  const hasToken = Boolean(localStorage.getItem('token'));
   const [user, setUser] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(hasToken);
   const [authTransition, setAuthTransition] = useState({
     loading: false,
     title: 'Loading...',
@@ -22,8 +23,6 @@ export const AuthProvider = ({ children }) => {
     const token = localStorage.getItem('token');
     if (token) {
       loadUser();
-    } else {
-      setLoading(false);
     }
   }, []);
 

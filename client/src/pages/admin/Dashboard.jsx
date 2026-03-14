@@ -1,4 +1,4 @@
-import { useState, useEffect, lazy, Suspense } from 'react';
+import { useState, useEffect, lazy, Suspense, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import api from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
@@ -16,7 +16,8 @@ import AdminPageHeader from '../../components/AdminPageHeader';
 import SectionLoader from '../../components/SectionLoader';
 import TenantTypeChartCard from '../../components/dashboard/TenantTypeChartCard';
 
-const DashboardCharts = lazy(() => import('../../components/dashboard/DashboardCharts'));
+const loadDashboardCharts = () => import('../../components/dashboard/DashboardCharts');
+const DashboardCharts = lazy(loadDashboardCharts);
 
 const COLORS = ['#16a34a', '#ef4444', '#f59e0b', '#8b5cf6', '#2563eb'];
 const DASHBOARD_STATS_CACHE_KEY = 'admin_dashboard_stats_cache_v1';
@@ -24,12 +25,13 @@ const DASHBOARD_REVENUE_CACHE_KEY = 'admin_dashboard_revenue_cache_v1';
 const DASHBOARD_TENANTS_CACHE_KEY = 'admin_dashboard_tenants_cache_v1';
 const DASHBOARD_VISITORS_CACHE_KEY = 'admin_dashboard_visitors_cache_v1';
 
-const fmt = (n) =>
-  new Intl.NumberFormat('en-PH', {
-    style: 'currency',
-    currency: 'PHP',
-    maximumFractionDigits: 0,
-  }).format(n || 0);
+const currencyFormatter = new Intl.NumberFormat('en-PH', {
+  style: 'currency',
+  currency: 'PHP',
+  maximumFractionDigits: 0,
+});
+
+const fmt = (n) => currencyFormatter.format(n || 0);
 
 const getCached = (key, fallback) => {
   try {
@@ -82,15 +84,15 @@ const AdminDashboard = () => {
   const cachedRevenue = getCached(DASHBOARD_REVENUE_CACHE_KEY, []);
   const cachedTenants = getCached(DASHBOARD_TENANTS_CACHE_KEY, []);
   const cachedVisitors = getCached(DASHBOARD_VISITORS_CACHE_KEY, []);
+  const hasCachedAnalytics =
+    cachedRevenue.length > 0 || cachedTenants.length > 0 || cachedVisitors.length > 0;
 
   const [stats, setStats] = useState(cachedStats);
   const [revenue, setRevenue] = useState(cachedRevenue);
   const [recentTenants, setRecentTenants] = useState(cachedTenants);
   const [recentVisitors, setRecentVisitors] = useState(cachedVisitors);
   const [loadingStats, setLoadingStats] = useState(!cachedStats);
-  const [analyticsLoading, setAnalyticsLoading] = useState(
-    cachedRevenue.length === 0 && cachedTenants.length === 0 && cachedVisitors.length === 0
-  );
+  const [analyticsLoading, setAnalyticsLoading] = useState(!hasCachedAnalytics);
 
   useEffect(() => {
     let active = true;
@@ -101,6 +103,9 @@ const AdminDashboard = () => {
         if (!active) return;
         setStats(statsRes.data);
         sessionStorage.setItem(DASHBOARD_STATS_CACHE_KEY, JSON.stringify(statsRes.data));
+
+        // Preload chart chunk so analytics section appears immediately once visible.
+        loadDashboardCharts();
       } catch (err) {
         console.error('Dashboard stats load error:', err);
       } finally {
@@ -110,7 +115,9 @@ const AdminDashboard = () => {
     };
 
     const loadAnalytics = async () => {
-      setAnalyticsLoading(true);
+      if (!hasCachedAnalytics) {
+        setAnalyticsLoading(true);
+      }
 
       const [revRes, tenRes, visRes] = await Promise.allSettled([
         api.get('/dashboard/analytics/monthly-revenue'),
@@ -143,22 +150,33 @@ const AdminDashboard = () => {
     };
   }, []);
 
-  const roomPieData = [
-    { name: 'Available', value: stats?.availableRooms || 0 },
-    { name: 'Full', value: stats?.fullRooms || 0 },
-    { name: 'Maintenance', value: stats?.maintenanceRooms || 0 },
-  ].filter((d) => d.value > 0);
+  const roomPieData = useMemo(
+    () =>
+      [
+        { name: 'Available', value: stats?.availableRooms || 0 },
+        { name: 'Full', value: stats?.fullRooms || 0 },
+        { name: 'Maintenance', value: stats?.maintenanceRooms || 0 },
+      ].filter((d) => d.value > 0),
+    [stats]
+  );
 
-  const tenantBarData = [
-    { name: 'Students', count: stats?.totalStudents || 0 },
-    { name: 'Staff', count: stats?.totalStaff || 0 },
-    { name: 'Faculty', count: stats?.totalFaculty || 0 },
-  ];
+  const tenantBarData = useMemo(
+    () => [
+      { name: 'Students', count: stats?.totalStudents || 0 },
+      { name: 'Staff', count: stats?.totalStaff || 0 },
+      { name: 'Faculty', count: stats?.totalFaculty || 0 },
+    ],
+    [stats]
+  );
 
-  const revenueChartData = revenue.map((r) => ({
-    label: r.label,
-    Revenue: parseFloat(r.revenue),
-  }));
+  const revenueChartData = useMemo(
+    () =>
+      revenue.map((r) => ({
+        label: r.label,
+        Revenue: parseFloat(r.revenue),
+      })),
+    [revenue]
+  );
 
   return (
     <div className="space-y-6">

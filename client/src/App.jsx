@@ -41,7 +41,7 @@ const AnimatedLoader = ({ title = 'Loading...', subtitle = 'Please wait.' }) => 
 );
 
 const RouteFallback = () => (
-  <AnimatedLoader title="Opening Page" subtitle="Preparing the selected module..." />
+  <div className="h-0" aria-hidden="true" />
 );
 
 const withSuspense = (element) => (
@@ -63,7 +63,7 @@ const App = () => {
   }
 
   if (loading) {
-    return <AnimatedLoader title="Loading Application" subtitle="Checking your session and permissions." />;
+    return null;
   }
 
   return (

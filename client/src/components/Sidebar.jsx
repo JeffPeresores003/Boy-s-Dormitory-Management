@@ -1,5 +1,7 @@
+import { useState } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import ConfirmModal from './ConfirmModal';
 import {
   HiOutlineHome, HiOutlineUserGroup, HiOutlineOfficeBuilding, HiOutlineCash,
   HiOutlineClipboardList, HiOutlineChartBar, HiOutlineX, HiOutlineViewList, HiOutlineLogout,
@@ -19,14 +21,16 @@ const Sidebar = ({ open, onClose }) => {
   const { user, logout, startAuthTransition, stopAuthTransition } = useAuth();
   const navigate = useNavigate();
   const links = adminLinks;
+  const [logoutModalOpen, setLogoutModalOpen] = useState(false);
 
-  const handleLogout = () => {
-    startAuthTransition('Signing You Out', 'Securing your account and returning to sign-in.');
+  const confirmLogout = () => {
+    setLogoutModalOpen(false);
+    startAuthTransition('Logging Out', 'Please wait while we securely sign you out.');
     logout();
     navigate('/login');
     setTimeout(() => {
       stopAuthTransition();
-    }, 650);
+    }, 900);
   };
 
   return (
@@ -96,7 +100,7 @@ const Sidebar = ({ open, onClose }) => {
 
           <div className="px-3 pb-4">
             <button
-              onClick={handleLogout}
+              onClick={() => setLogoutModalOpen(true)}
               className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-slate-300 hover:bg-red-500/15 hover:text-red-300 border border-slate-700/60 transition-colors"
             >
               <HiOutlineLogout className="w-5 h-5" />
@@ -105,6 +109,16 @@ const Sidebar = ({ open, onClose }) => {
           </div>
         </div>
       </aside>
+
+      <ConfirmModal
+        open={logoutModalOpen}
+        title="Confirm Log Out"
+        message="Are you sure you want to log out? You will need to sign in again to access the system."
+        confirmText="Log out"
+        cancelText="Cancel"
+        onConfirm={confirmLogout}
+        onCancel={() => setLogoutModalOpen(false)}
+      />
     </>
   );
 };

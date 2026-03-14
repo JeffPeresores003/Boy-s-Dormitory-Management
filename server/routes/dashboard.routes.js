@@ -11,46 +11,65 @@ router.use(authorize('admin'));
 // ---------------- Get Dashboard Stats ---------------- //
 router.get("/stats", async (req, res) => {
   try {
-    const [totalTenants]   = await pool.execute("SELECT COUNT(*) as count FROM Tenants WHERE status = 'active'");
-    const [totalStudents]  = await pool.execute("SELECT COUNT(*) as count FROM Tenants WHERE status = 'active' AND type = 'student'");
-    const [totalStaff]     = await pool.execute("SELECT COUNT(*) as count FROM Tenants WHERE status = 'active' AND type = 'staff'");
-    const [totalFaculty]   = await pool.execute("SELECT COUNT(*) as count FROM Tenants WHERE status = 'active' AND type = 'faculty'");
-    const [totalRooms]     = await pool.execute("SELECT COUNT(*) as count FROM Rooms");
-    const [availableRooms] = await pool.execute("SELECT COUNT(*) as count FROM Rooms WHERE status = 'available'");
-    const [fullRooms]      = await pool.execute("SELECT COUNT(*) as count FROM Rooms WHERE status = 'full'");
-    const [maintenanceRooms] = await pool.execute("SELECT COUNT(*) as count FROM Rooms WHERE status = 'maintenance'");
-    const [pendingPayments]  = await pool.execute("SELECT COUNT(*) as count FROM Payments WHERE status = 'unpaid'");
-    const [partialPayments]  = await pool.execute("SELECT COUNT(*) as count FROM Payments WHERE status = 'partial'");
-    const [todayVisitors]    = await pool.execute("SELECT COUNT(*) as count FROM Visitors WHERE DATE(timeIn) = CURDATE()");
-    const [billing] = await pool.execute(
-      "SELECT COALESCE(SUM(amount), 0) as totalBilled, COALESCE(SUM(amountPaid), 0) as totalCollected, COALESCE(SUM(amount - amountPaid), 0) as totalBalance FROM Payments"
-    );
-    const [capacityRow] = await pool.execute(
-      "SELECT COALESCE(SUM(capacity), 0) as totalCapacity FROM Rooms WHERE status != 'maintenance'"
-    );
+    const [tenantRowsResult, roomRowsResult, paymentRowsResult, visitorRowsResult] = await Promise.all([
+      pool.execute(
+        `SELECT
+          COALESCE(SUM(CASE WHEN status = 'active' THEN 1 ELSE 0 END), 0) AS totalTenants,
+          COALESCE(SUM(CASE WHEN status = 'active' AND type = 'student' THEN 1 ELSE 0 END), 0) AS totalStudents,
+          COALESCE(SUM(CASE WHEN status = 'active' AND type = 'staff' THEN 1 ELSE 0 END), 0) AS totalStaff,
+          COALESCE(SUM(CASE WHEN status = 'active' AND type = 'faculty' THEN 1 ELSE 0 END), 0) AS totalFaculty
+         FROM Tenants`
+      ),
+      pool.execute(
+        `SELECT
+          COUNT(*) AS totalRooms,
+          COALESCE(SUM(CASE WHEN status = 'available' THEN 1 ELSE 0 END), 0) AS availableRooms,
+          COALESCE(SUM(CASE WHEN status = 'full' THEN 1 ELSE 0 END), 0) AS fullRooms,
+          COALESCE(SUM(CASE WHEN status = 'maintenance' THEN 1 ELSE 0 END), 0) AS maintenanceRooms,
+          COALESCE(SUM(CASE WHEN status != 'maintenance' THEN capacity ELSE 0 END), 0) AS totalCapacity
+         FROM Rooms`
+      ),
+      pool.execute(
+        `SELECT
+          COALESCE(SUM(CASE WHEN status = 'unpaid' THEN 1 ELSE 0 END), 0) AS pendingPayments,
+          COALESCE(SUM(CASE WHEN status = 'partial' THEN 1 ELSE 0 END), 0) AS partialPayments,
+          COALESCE(SUM(amount), 0) AS totalBilled,
+          COALESCE(SUM(amountPaid), 0) AS totalCollected,
+          COALESCE(SUM(amount - amountPaid), 0) AS totalBalance
+         FROM Payments`
+      ),
+      pool.execute(
+        "SELECT COUNT(*) AS todayVisitors FROM Visitors WHERE DATE(timeIn) = CURDATE()"
+      ),
+    ]);
 
-    const activeTenants  = parseInt(totalTenants[0].count);
-    const totalCapacity  = parseInt(capacityRow[0].totalCapacity);
-    const totalCollected = parseFloat(billing[0].totalCollected);
-    const totalBilled    = parseFloat(billing[0].totalBilled);
+    const tenantRows = tenantRowsResult[0][0] || {};
+    const roomRows = roomRowsResult[0][0] || {};
+    const paymentRows = paymentRowsResult[0][0] || {};
+    const visitorRows = visitorRowsResult[0][0] || {};
+
+    const activeTenants  = Number(tenantRows.totalTenants || 0);
+    const totalCapacity  = Number(roomRows.totalCapacity || 0);
+    const totalCollected = Number(paymentRows.totalCollected || 0);
+    const totalBilled    = Number(paymentRows.totalBilled || 0);
     const occupancyRate  = totalCapacity > 0 ? Math.round((activeTenants / totalCapacity) * 100) : 0;
     const collectionRate = totalBilled > 0 ? Math.round((totalCollected / totalBilled) * 100) : 0;
 
     res.json({
       totalTenants:     activeTenants,
-      totalStudents:    parseInt(totalStudents[0].count),
-      totalStaff:       parseInt(totalStaff[0].count),
-      totalFaculty:     parseInt(totalFaculty[0].count),
-      totalRooms:       parseInt(totalRooms[0].count),
-      availableRooms:   parseInt(availableRooms[0].count),
-      fullRooms:        parseInt(fullRooms[0].count),
-      maintenanceRooms: parseInt(maintenanceRooms[0].count),
-      pendingPayments:  parseInt(pendingPayments[0].count),
-      partialPayments:  parseInt(partialPayments[0].count),
-      todayVisitors:    parseInt(todayVisitors[0].count),
+      totalStudents:    Number(tenantRows.totalStudents || 0),
+      totalStaff:       Number(tenantRows.totalStaff || 0),
+      totalFaculty:     Number(tenantRows.totalFaculty || 0),
+      totalRooms:       Number(roomRows.totalRooms || 0),
+      availableRooms:   Number(roomRows.availableRooms || 0),
+      fullRooms:        Number(roomRows.fullRooms || 0),
+      maintenanceRooms: Number(roomRows.maintenanceRooms || 0),
+      pendingPayments:  Number(paymentRows.pendingPayments || 0),
+      partialPayments:  Number(paymentRows.partialPayments || 0),
+      todayVisitors:    Number(visitorRows.todayVisitors || 0),
       totalBilled,
       totalCollected,
-      totalBalance:     parseFloat(billing[0].totalBalance),
+      totalBalance:     Number(paymentRows.totalBalance || 0),
       occupancyRate,
       collectionRate,
       totalCapacity,
