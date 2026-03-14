@@ -31,7 +31,7 @@ const Rooms = () => {
       const res = await api.get('/rooms', { params: { page, limit: 10, search, status: statusFilter } });
       setRooms(res.data.rooms);
       setTotalPages(res.data.totalPages);
-    } catch { toast.error('Failed to load rooms'); }
+    } catch { toast.error('Unable to load room records.'); }
   }, [page, search, statusFilter]);
 
   useEffect(() => { fetchRooms(); }, [fetchRooms]);
@@ -43,14 +43,14 @@ const Rooms = () => {
     try {
       if (editingId) {
         await api.put(`/rooms/${editingId}`, form);
-        toast.success('Room updated');
+        toast.success('Room details updated successfully.');
       } else {
         await api.post('/rooms', form);
-        toast.success('Room created');
+        toast.success('Room created successfully.');
       }
       resetForm();
       fetchRooms();
-    } catch (err) { toast.error(err.response?.data?.message || 'Operation failed'); }
+    } catch (err) { toast.error(err.response?.data?.message || 'Unable to save the room details.'); }
   };
 
   const handleEdit = (room) => {
@@ -62,10 +62,10 @@ const Rooms = () => {
   const handleDelete = async () => {
     try {
       await api.delete(`/rooms/${confirmModal.id}`);
-      toast.success('Room deleted');
+      toast.success('Room deleted successfully.');
       setConfirmModal({ open: false, id: null });
       fetchRooms();
-    } catch (err) { toast.error(err.response?.data?.message || 'Delete failed'); }
+    } catch (err) { toast.error(err.response?.data?.message || 'Unable to delete the room.'); }
   };
 
   const openAssign = async (room) => {
@@ -80,32 +80,35 @@ const Rooms = () => {
     if (!assignTenantId) return;
     try {
       await api.post(`/rooms/${showAssign.id}/assign`, { tenantId: parseInt(assignTenantId) });
-      toast.success('Tenant assigned to room');
+      toast.success('Tenant assigned successfully.');
       setShowAssign(null);
       setAssignTenantId('');
       fetchRooms();
-    } catch (err) { toast.error(err.response?.data?.message || 'Assign failed'); }
+    } catch (err) { toast.error(err.response?.data?.message || 'Unable to assign the tenant.'); }
   };
 
   const handleRemove = async (roomId, tenantId) => {
     try {
       await api.post(`/rooms/${roomId}/remove`, { tenantId });
-      toast.success('Tenant removed from room');
+      toast.success('Tenant removed successfully.');
       fetchRooms();
-    } catch (err) { toast.error(err.response?.data?.message || 'Remove failed'); }
+    } catch (err) { toast.error(err.response?.data?.message || 'Unable to remove the tenant from the room.'); }
   };
 
   return (
     <div>
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">Rooms</h1>
-        <button onClick={() => { resetForm(); setShowForm(true); }} className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 text-sm font-medium">+ Add Room</button>
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6 rounded-2xl border border-slate-700/50 bg-slate-900/45 px-5 py-4">
+        <div>
+          <h1 className="text-2xl font-bold text-slate-100">Rooms</h1>
+          <p className="text-sm text-slate-400">Manage room capacity, occupancy, and tenant assignments.</p>
+        </div>
+        <button onClick={() => { resetForm(); setShowForm(true); }} className="px-4 py-2 bg-emerald-500 text-white rounded-lg hover:bg-emerald-600 text-sm font-medium transition-colors">+ Add Room</button>
       </div>
 
       <div className="flex flex-col sm:flex-row gap-3 mb-4">
-        <div className="flex-1"><SearchBar value={search} onChange={(v) => { setSearch(v); setPage(1); }} placeholder="Search room number..." /></div>
+        <div className="flex-1"><SearchBar value={search} onChange={(v) => { setSearch(v); setPage(1); }} placeholder="Search rooms by number..." /></div>
         <select value={statusFilter} onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }}
-          className="px-3 py-2 border border-gray-300 rounded-lg text-sm">
+          className="px-3 py-2 border border-slate-700 rounded-lg text-sm bg-slate-900/70 text-slate-100">
           <option value="">All Status</option>
           <option value="available">Available</option>
           <option value="full">Full</option>
@@ -115,9 +118,9 @@ const Rooms = () => {
 
       {/* Form Modal */}
       {showForm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-          <div className="bg-white rounded-xl shadow-xl max-w-lg w-full mx-4 p-6">
-            <h2 className="text-lg font-semibold mb-4">{editingId ? 'Edit Room' : 'Add New Room'}</h2>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+          <div className="bg-slate-900/95 border border-slate-700 rounded-xl shadow-xl max-w-lg w-full mx-4 p-6 text-slate-100">
+            <h2 className="text-lg font-semibold mb-4">{editingId ? 'Edit Room' : 'Add Room'}</h2>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div>
@@ -153,8 +156,8 @@ const Rooms = () => {
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" rows="2" />
               </div>
               <div className="flex justify-end gap-3">
-                <button type="button" onClick={resetForm} className="px-4 py-2 text-sm text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200">Cancel</button>
-                <button type="submit" className="px-4 py-2 text-sm text-white bg-primary-600 rounded-lg hover:bg-primary-700">{editingId ? 'Update' : 'Create'}</button>
+                <button type="button" onClick={resetForm} className="px-4 py-2 text-sm text-slate-200 bg-slate-800 rounded-lg hover:bg-slate-700">Cancel</button>
+                <button type="submit" className="px-4 py-2 text-sm text-white bg-primary-600 rounded-lg hover:bg-primary-700">{editingId ? 'Save Changes' : 'Create Room'}</button>
               </div>
             </form>
           </div>
@@ -163,19 +166,19 @@ const Rooms = () => {
 
       {/* Assign Modal */}
       {showAssign && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-          <div className="bg-white rounded-xl shadow-xl max-w-md w-full mx-4 p-6">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+          <div className="bg-slate-900/95 border border-slate-700 rounded-xl shadow-xl max-w-md w-full mx-4 p-6 text-slate-100">
             <h2 className="text-lg font-semibold mb-4">Assign Tenant to Room {showAssign.roomNumber}</h2>
             <select value={assignTenantId} onChange={(e) => setAssignTenantId(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm mb-4">
+              className="w-full px-3 py-2 border border-slate-700 rounded-lg text-sm mb-4 bg-slate-900/70 text-slate-100">
               <option value="">Select a tenant</option>
               {unassignedTenants.map(t => (
                 <option key={t.id} value={t.id}>{t.firstName} {t.lastName} ({t.tenantNumber}) - {t.type}</option>
               ))}
             </select>
             <div className="flex justify-end gap-3">
-              <button onClick={() => { setShowAssign(null); setAssignTenantId(''); }} className="px-4 py-2 text-sm text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200">Cancel</button>
-              <button onClick={handleAssign} className="px-4 py-2 text-sm text-white bg-primary-600 rounded-lg hover:bg-primary-700">Assign</button>
+              <button onClick={() => { setShowAssign(null); setAssignTenantId(''); }} className="px-4 py-2 text-sm text-slate-200 bg-slate-800 rounded-lg hover:bg-slate-700">Cancel</button>
+              <button onClick={handleAssign} className="px-4 py-2 text-sm text-white bg-primary-600 rounded-lg hover:bg-primary-700">Assign Tenant</button>
             </div>
           </div>
         </div>
@@ -183,11 +186,11 @@ const Rooms = () => {
 
       {/* Occupants Modal */}
       {showOccupants && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-          <div className="bg-white rounded-xl shadow-xl max-w-2xl w-full mx-4 p-6">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+          <div className="bg-slate-900/95 border border-slate-700 rounded-xl shadow-xl max-w-2xl w-full mx-4 p-6 text-slate-100">
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-semibold">Occupants in Room {showOccupants.roomNumber}</h2>
-              <button onClick={() => setShowOccupants(null)} className="text-gray-400 hover:text-gray-600">
+              <h2 className="text-lg font-semibold">Occupants for Room {showOccupants.roomNumber}</h2>
+              <button onClick={() => setShowOccupants(null)} className="text-slate-400 hover:text-slate-200">
                 <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                 </svg>
@@ -226,11 +229,11 @@ const Rooms = () => {
                   </table>
                 </div>
               ) : (
-                <div className="text-center py-8 text-gray-400">No occupants in this room</div>
+                <div className="text-center py-8 text-gray-400">No occupants are currently assigned to this room.</div>
               )}
             </div>
             <div className="flex justify-end mt-6">
-              <button onClick={() => setShowOccupants(null)} className="px-4 py-2 text-sm text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200">
+              <button onClick={() => setShowOccupants(null)} className="px-4 py-2 text-sm text-slate-200 bg-slate-800 rounded-lg hover:bg-slate-700">
                 Close
               </button>
             </div>
@@ -274,12 +277,12 @@ const Rooms = () => {
                   {r.occupants && r.occupants.length > 0 ? (
                     <button
                       onClick={() => setShowOccupants(r)}
-                      className="px-3 py-1 text-xs font-medium text-primary-600 bg-primary-50 rounded-lg hover:bg-primary-100 transition-colors"
+                      className="px-3 py-1 text-xs font-medium text-blue-200 bg-blue-500/15 rounded-lg border border-blue-400/30 hover:bg-blue-500/25 transition-colors"
                     >
                       View ({r.occupants.length})
                     </button>
                   ) : (
-                    <span className="text-gray-400">No occupants</span>
+                    <span className="text-slate-500">No occupants assigned</span>
                   )}
                 </td>
                 <td className="px-4 py-3">
@@ -294,14 +297,14 @@ const Rooms = () => {
               </tr>
             ))}
             {rooms.length === 0 && (
-              <tr><td colSpan={7} className="px-4 py-8 text-center text-gray-400">No rooms found</td></tr>
+              <tr><td colSpan={7} className="px-4 py-8 text-center text-gray-400">No room records found.</td></tr>
             )}
           </tbody>
         </table>
       </div>
 
       <Pagination page={page} totalPages={totalPages} onPageChange={setPage} />
-      <ConfirmModal open={confirmModal.open} title="Delete Room" message="Are you sure? Rooms with occupants cannot be deleted."
+      <ConfirmModal open={confirmModal.open} title="Delete Room" message="Are you sure you want to delete this room? Rooms with assigned occupants cannot be deleted."
         onConfirm={handleDelete} onCancel={() => setConfirmModal({ open: false, id: null })} />
     </div>
   );

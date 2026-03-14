@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import api from '../../services/api';
+import { useAuth } from '../../context/AuthContext';
 import {
   HiOutlineUserGroup, HiOutlineOfficeBuilding, HiOutlineCash,
   HiOutlineClipboardList, HiOutlineTrendingUp, HiOutlineHome,
@@ -49,6 +50,7 @@ const Badge = ({ status }) => {
 };
 
 const AdminDashboard = () => {
+  const { user } = useAuth();
   const [stats, setStats]               = useState(null);
   const [revenue, setRevenue]           = useState([]);
   const [recentTenants, setRecentTenants] = useState([]);
@@ -89,7 +91,7 @@ const AdminDashboard = () => {
     return (
       <div className="flex flex-col items-center justify-center h-64 gap-3 text-gray-500">
         <HiOutlineExclamationCircle className="w-10 h-10 text-red-400" />
-        <p>Failed to load dashboard data.</p>
+        <p>Unable to load dashboard data.</p>
       </div>
     );
   }
@@ -114,18 +116,18 @@ const AdminDashboard = () => {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
-        <p className="text-sm text-gray-500 mt-1">Overview of the BISU Boy's Dormitory</p>
+      <div className="rounded-2xl border border-slate-700/50 bg-slate-900/45 px-5 py-4 md:px-6">
+        <h1 className="text-3xl font-bold text-slate-100">Welcome back, {user?.name || 'Admin'}</h1>
+        <p className="text-sm text-slate-400 mt-1">Administrative overview for the BISU Boy&apos;s Dormitory.</p>
       </div>
 
       {/* Primary KPIs */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
         <StatCard
           icon={HiOutlineUserGroup}
           label="Active Tenants"
           value={stats.totalTenants}
-          sub={`of ${stats.totalCapacity} beds filled`}
+          sub={`${stats.totalCapacity} total bed capacity`}
           color="bg-primary-600"
           to="/admin/tenants"
         />
@@ -133,14 +135,14 @@ const AdminDashboard = () => {
           icon={HiOutlineHome}
           label="Occupancy Rate"
           value={`${stats.occupancyRate}%`}
-          sub={`${stats.availableRooms} rooms available`}
+          sub={`${stats.availableRooms} rooms currently available`}
           color={stats.occupancyRate >= 90 ? 'bg-red-500' : stats.occupancyRate >= 70 ? 'bg-yellow-500' : 'bg-green-600'}
         />
         <StatCard
           icon={HiOutlineCash}
           label="Total Collected"
           value={fmt(stats.totalCollected)}
-          sub={`${stats.collectionRate}% collection rate`}
+          sub={`${stats.collectionRate}% collection efficiency`}
           color="bg-emerald-600"
           to="/admin/payments"
         />
@@ -148,19 +150,19 @@ const AdminDashboard = () => {
           icon={HiOutlineClipboardList}
           label="Today's Visitors"
           value={stats.todayVisitors}
-          sub="checked in today"
+          sub="visitor entries recorded today"
           color="bg-violet-600"
           to="/admin/visitors"
         />
       </div>
 
       {/* Secondary KPIs */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
         <StatCard
           icon={HiOutlineOfficeBuilding}
           label="Total Rooms"
           value={stats.totalRooms}
-          sub={`${stats.fullRooms} full · ${stats.maintenanceRooms} under maintenance`}
+          sub={`${stats.fullRooms} fully occupied · ${stats.maintenanceRooms} under maintenance`}
           color="bg-slate-600"
           to="/admin/rooms"
         />
@@ -168,7 +170,7 @@ const AdminDashboard = () => {
           icon={HiOutlineExclamationCircle}
           label="Unpaid Bills"
           value={stats.pendingPayments}
-          sub={`${stats.partialPayments} partially paid`}
+          sub={`${stats.partialPayments} partially settled`}
           color="bg-red-500"
           to="/admin/payments"
         />
@@ -176,7 +178,7 @@ const AdminDashboard = () => {
           icon={HiOutlineTrendingUp}
           label="Outstanding Balance"
           value={fmt(stats.totalBalance)}
-          sub="total amount due"
+          sub="total outstanding balance"
           color="bg-orange-500"
           to="/admin/payments"
         />
@@ -184,7 +186,7 @@ const AdminDashboard = () => {
           icon={HiOutlineCheckCircle}
           label="Total Billed"
           value={fmt(stats.totalBilled)}
-          sub="across all semesters"
+          sub="across all billing periods"
           color="bg-cyan-600"
           to="/admin/reports"
         />
@@ -195,7 +197,7 @@ const AdminDashboard = () => {
         {/* Monthly Revenue */}
         <div className="lg:col-span-2 bg-white rounded-xl shadow-sm border border-gray-100 p-5">
           <h3 className="text-base font-semibold text-gray-800 mb-1">Monthly Revenue</h3>
-          <p className="text-xs text-gray-400 mb-4">Last 6 months — total amounts collected</p>
+          <p className="text-xs text-gray-400 mb-4">Total collections for the past six months</p>
           {revenueChartData.length > 0 ? (
             <ResponsiveContainer width="100%" height={220}>
               <BarChart data={revenueChartData} margin={{ top: 4, right: 8, bottom: 0, left: 0 }}>
@@ -207,14 +209,14 @@ const AdminDashboard = () => {
               </BarChart>
             </ResponsiveContainer>
           ) : (
-            <div className="flex items-center justify-center h-48 text-sm text-gray-400">No payment data yet</div>
+            <div className="flex items-center justify-center h-48 text-sm text-gray-400">No payment data available yet.</div>
           )}
         </div>
 
         {/* Room Status Donut */}
         <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5">
           <h3 className="text-base font-semibold text-gray-800 mb-1">Room Status</h3>
-          <p className="text-xs text-gray-400 mb-4">{stats.totalRooms} rooms total</p>
+          <p className="text-xs text-gray-400 mb-4">{stats.totalRooms} rooms in the system</p>
           {roomPieData.length > 0 ? (
             <ResponsiveContainer width="100%" height={220}>
               <PieChart>
@@ -234,7 +236,7 @@ const AdminDashboard = () => {
               </PieChart>
             </ResponsiveContainer>
           ) : (
-            <div className="flex items-center justify-center h-48 text-sm text-gray-400">No rooms yet</div>
+            <div className="flex items-center justify-center h-48 text-sm text-gray-400">No rooms have been added yet.</div>
           )}
         </div>
       </div>
@@ -244,7 +246,7 @@ const AdminDashboard = () => {
         {/* Tenant Types Bar */}
         <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5">
           <h3 className="text-base font-semibold text-gray-800 mb-1">Tenants by Type</h3>
-          <p className="text-xs text-gray-400 mb-4">{stats.totalTenants} active tenants</p>
+          <p className="text-xs text-gray-400 mb-4">{stats.totalTenants} tenants currently active</p>
           <ResponsiveContainer width="100%" height={180}>
             <BarChart data={tenantBarData} layout="vertical" margin={{ left: 10 }}>
               <CartesianGrid strokeDasharray="3 3" horizontal={false} />
@@ -265,9 +267,9 @@ const AdminDashboard = () => {
           <div className="flex items-center justify-between mb-4">
             <div>
               <h3 className="text-base font-semibold text-gray-800">Recent Visitors</h3>
-              <p className="text-xs text-gray-400">Latest visitor log entries</p>
+              <p className="text-xs text-gray-400">Most recent visitor log entries</p>
             </div>
-            <Link to="/admin/visitors" className="text-xs text-primary-600 hover:underline font-medium">View all →</Link>
+            <Link to="/admin/visitors" className="text-xs text-primary-600 hover:underline font-medium">View all</Link>
           </div>
           {recentVisitors.length > 0 ? (
             <div className="space-y-3">
@@ -276,21 +278,21 @@ const AdminDashboard = () => {
                   <div className="min-w-0">
                     <p className="font-medium text-gray-800 truncate">{v.visitorName}</p>
                     <p className="text-xs text-gray-400 truncate">
-                      visiting {v.tenantFirstName ? `${v.tenantFirstName} ${v.tenantLastName}` : '—'} · {v.purpose}
+                      Visiting {v.tenantFirstName ? `${v.tenantFirstName} ${v.tenantLastName}` : '—'} · {v.purpose}
                     </p>
                   </div>
                   <div className="text-right ml-4 flex-shrink-0">
                     <p className="text-xs text-gray-500">{new Date(v.timeIn).toLocaleDateString()}</p>
                     {v.timeOut
-                      ? <span className="text-xs text-gray-400">checked out</span>
-                      : <span className="text-xs text-green-600 font-medium">still inside</span>
+                      ? <span className="text-xs text-gray-400">Checked out</span>
+                      : <span className="text-xs text-green-600 font-medium">Currently on site</span>
                     }
                   </div>
                 </div>
               ))}
             </div>
           ) : (
-            <p className="text-sm text-gray-400 text-center py-6">No visitor records yet</p>
+            <p className="text-sm text-gray-400 text-center py-6">No visitor activity has been recorded yet.</p>
           )}
         </div>
       </div>
@@ -299,10 +301,10 @@ const AdminDashboard = () => {
       <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5">
         <div className="flex items-center justify-between mb-4">
           <div>
-            <h3 className="text-base font-semibold text-gray-800">Recently Added Tenants</h3>
-            <p className="text-xs text-gray-400">Last 5 tenants registered</p>
+            <h3 className="text-base font-semibold text-gray-800">Recently Registered Tenants</h3>
+            <p className="text-xs text-gray-400">The five most recently added tenant records</p>
           </div>
-          <Link to="/admin/tenants" className="text-xs text-primary-600 hover:underline font-medium">View all →</Link>
+          <Link to="/admin/tenants" className="text-xs text-primary-600 hover:underline font-medium">View all</Link>
         </div>
         {recentTenants.length > 0 ? (
           <div className="overflow-x-auto">
@@ -330,7 +332,7 @@ const AdminDashboard = () => {
             </table>
           </div>
         ) : (
-          <p className="text-sm text-gray-400 text-center py-6">No tenants registered yet</p>
+          <p className="text-sm text-gray-400 text-center py-6">No tenants have been registered yet.</p>
         )}
       </div>
     </div>

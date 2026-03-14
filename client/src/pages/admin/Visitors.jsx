@@ -21,7 +21,7 @@ const Visitors = () => {
       const res = await api.get('/visitors', { params: { page, limit: 10, search, date: dateFilter } });
       setVisitors(res.data.visitors);
       setTotalPages(res.data.totalPages);
-    } catch { toast.error('Failed to load visitors'); }
+    } catch { toast.error('Unable to load visitor records.'); }
   }, [page, search, dateFilter]);
 
   useEffect(() => { fetchVisitors(); }, [fetchVisitors]);
@@ -39,49 +39,52 @@ const Visitors = () => {
     e.preventDefault();
     try {
       await api.post('/visitors', { ...form, tenantVisitedId: parseInt(form.tenantVisitedId) });
-      toast.success('Visitor logged');
+      toast.success('Visitor entry created successfully.');
       setShowForm(false);
       fetchVisitors();
-    } catch (err) { toast.error(err.response?.data?.message || 'Failed'); }
+    } catch (err) { toast.error(err.response?.data?.message || 'Unable to save the visitor entry.'); }
   };
 
   const handleCheckout = async (id) => {
     try {
       await api.put(`/visitors/${id}/checkout`);
-      toast.success('Visitor checked out');
+      toast.success('Visitor checked out successfully.');
       fetchVisitors();
-    } catch (err) { toast.error(err.response?.data?.message || 'Checkout failed'); }
+    } catch (err) { toast.error(err.response?.data?.message || 'Unable to complete checkout.'); }
   };
 
   const handleDelete = async () => {
     try {
       await api.delete(`/visitors/${confirmModal.id}`);
-      toast.success('Log deleted');
+      toast.success('Visitor record deleted successfully.');
       setConfirmModal({ open: false, id: null });
       fetchVisitors();
-    } catch { toast.error('Delete failed'); }
+    } catch { toast.error('Unable to delete the visitor record.'); }
   };
 
   const formatTime = (dt) => dt ? new Date(dt).toLocaleString() : '—';
 
   return (
     <div>
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">Visitor Log</h1>
-        <button onClick={openCreate} className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 text-sm font-medium">+ Log Visitor</button>
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6 rounded-2xl border border-slate-700/50 bg-slate-900/45 px-5 py-4">
+        <div>
+          <h1 className="text-2xl font-bold text-slate-100">Visitor Log</h1>
+          <p className="text-sm text-slate-400">Monitor visitor check-in and check-out activity.</p>
+        </div>
+        <button onClick={openCreate} className="px-4 py-2 bg-emerald-500 text-white rounded-lg hover:bg-emerald-600 text-sm font-medium transition-colors">+ Add Visitor Entry</button>
       </div>
 
       <div className="flex flex-col sm:flex-row gap-3 mb-4">
-        <div className="flex-1"><SearchBar value={search} onChange={(v) => { setSearch(v); setPage(1); }} placeholder="Search visitor name..." /></div>
+        <div className="flex-1"><SearchBar value={search} onChange={(v) => { setSearch(v); setPage(1); }} placeholder="Search visitor records..." /></div>
         <input type="date" value={dateFilter} onChange={(e) => { setDateFilter(e.target.value); setPage(1); }}
-          className="px-3 py-2 border border-gray-300 rounded-lg text-sm" />
+          className="px-3 py-2 border border-slate-700 rounded-lg text-sm bg-slate-900/70 text-slate-100" />
       </div>
 
       {/* Form Modal */}
       {showForm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-          <div className="bg-white rounded-xl shadow-xl max-w-lg w-full mx-4 p-6">
-            <h2 className="text-lg font-semibold mb-4">Log Visitor</h2>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+          <div className="bg-slate-900/95 border border-slate-700 rounded-xl shadow-xl max-w-lg w-full mx-4 p-6 text-slate-100">
+            <h2 className="text-lg font-semibold mb-4">Record Visitor Entry</h2>
             <form onSubmit={handleCreate} className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Visitor Name *</label>
@@ -89,7 +92,7 @@ const Visitors = () => {
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" required />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Tenant Visited *</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Tenant to Visit *</label>
                 <select value={form.tenantVisitedId} onChange={(e) => setForm({...form, tenantVisitedId: e.target.value})}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" required>
                   <option value="">Select tenant</option>
@@ -97,13 +100,13 @@ const Visitors = () => {
                 </select>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Purpose *</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Purpose of Visit *</label>
                 <input value={form.purpose} onChange={(e) => setForm({...form, purpose: e.target.value})}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" required />
               </div>
               <div className="flex justify-end gap-3">
-                <button type="button" onClick={() => setShowForm(false)} className="px-4 py-2 text-sm text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200">Cancel</button>
-                <button type="submit" className="px-4 py-2 text-sm text-white bg-primary-600 rounded-lg hover:bg-primary-700">Log Entry</button>
+                <button type="button" onClick={() => setShowForm(false)} className="px-4 py-2 text-sm text-slate-200 bg-slate-800 rounded-lg hover:bg-slate-700">Cancel</button>
+                <button type="submit" className="px-4 py-2 text-sm text-white bg-primary-600 rounded-lg hover:bg-primary-700">Save Entry</button>
               </div>
             </form>
           </div>
@@ -129,24 +132,24 @@ const Visitors = () => {
                 <td className="px-4 py-3">{v.tenantVisited ? `${v.tenantVisited.firstName} ${v.tenantVisited.lastName}` : '—'}</td>
                 <td className="px-4 py-3 hidden md:table-cell">{v.purpose}</td>
                 <td className="px-4 py-3 text-xs">{formatTime(v.timeIn)}</td>
-                <td className="px-4 py-3 text-xs">{v.timeOut ? formatTime(v.timeOut) : <span className="text-yellow-600 font-medium">Still In</span>}</td>
+                <td className="px-4 py-3 text-xs">{v.timeOut ? formatTime(v.timeOut) : <span className="text-amber-300 font-medium">On Site</span>}</td>
                 <td className="px-4 py-3">
                   <div className="flex gap-2">
-                    {!v.timeOut && <button onClick={() => handleCheckout(v.id)} className="text-green-600 hover:underline text-xs">Checkout</button>}
+                    {!v.timeOut && <button onClick={() => handleCheckout(v.id)} className="text-green-600 hover:underline text-xs">Check Out</button>}
                     <button onClick={() => setConfirmModal({ open: true, id: v.id })} className="text-red-600 hover:underline text-xs">Delete</button>
                   </div>
                 </td>
               </tr>
             ))}
             {visitors.length === 0 && (
-              <tr><td colSpan={6} className="px-4 py-8 text-center text-gray-400">No visitor logs found</td></tr>
+              <tr><td colSpan={6} className="px-4 py-8 text-center text-gray-400">No visitor records found.</td></tr>
             )}
           </tbody>
         </table>
       </div>
 
       <Pagination page={page} totalPages={totalPages} onPageChange={setPage} />
-      <ConfirmModal open={confirmModal.open} title="Delete Visitor Log" message="Are you sure?"
+      <ConfirmModal open={confirmModal.open} title="Delete Visitor Record" message="Are you sure you want to delete this visitor record?"
         onConfirm={handleDelete} onCancel={() => setConfirmModal({ open: false, id: null })} />
     </div>
   );

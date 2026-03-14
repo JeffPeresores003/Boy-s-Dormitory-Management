@@ -14,9 +14,9 @@ const ForgotPassword = () => {
     try {
       const res = await api.post('/auth/forgot-password', { email });
       setResetToken(res.data.resetToken);
-      toast.success('Reset token generated');
+      toast.success('Reset token generated successfully.');
     } catch (err) {
-      toast.error(err.response?.data?.message || 'Request failed');
+      toast.error(err.response?.data?.message || 'Unable to process your request.');
     } finally {
       setLoading(false);
     }
@@ -25,8 +25,8 @@ const ForgotPassword = () => {
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-primary-800 to-primary-600 px-4">
       <div className="max-w-md w-full bg-white rounded-2xl shadow-xl p-8">
-        <h2 className="text-xl font-bold text-gray-900 text-center">Forgot Password</h2>
-        <p className="text-sm text-gray-500 text-center mt-1">Enter your email to get a reset token</p>
+        <h2 className="text-xl font-bold text-gray-900 text-center">Forgot Your Password?</h2>
+        <p className="text-sm text-gray-500 text-center mt-1">Enter your email address to generate a reset token.</p>
 
         <form onSubmit={handleSubmit} className="mt-6 space-y-5">
           <div>
@@ -44,7 +44,7 @@ const ForgotPassword = () => {
             disabled={loading}
             className="w-full py-2.5 bg-primary-600 text-white font-medium rounded-lg hover:bg-primary-700 disabled:opacity-50"
           >
-            {loading ? 'Sending...' : 'Send Reset Token'}
+            {loading ? 'Generating...' : 'Generate Reset Token'}
           </button>
         </form>
 
@@ -56,7 +56,7 @@ const ForgotPassword = () => {
         )}
 
         <div className="mt-4 text-center">
-          <Link to="/login" className="text-sm text-primary-600 hover:underline">Back to Login</Link>
+          <Link to="/login" className="text-sm text-primary-600 hover:underline">Back to Sign In</Link>
         </div>
       </div>
     </div>

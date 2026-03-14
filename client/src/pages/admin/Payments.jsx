@@ -40,7 +40,7 @@ const Payments = () => {
       const res = await api.get('/payments', { params: { page, limit: 10, search, status: statusFilter } });
       setPayments(res.data.payments);
       setTotalPages(res.data.totalPages);
-    } catch { toast.error('Failed to load payments'); }
+    } catch { toast.error('Unable to load payment records.'); }
   }, [page, search, statusFilter]);
 
   useEffect(() => { fetchPayments(); }, [fetchPayments]);
@@ -49,11 +49,11 @@ const Payments = () => {
     setCreating(true);
     try {
       const res = await api.post('/payments/create-batch', { year: createYear, month: createMonth });
-      toast.success(`Billing cycle created — ${res.data.created} payment(s) generated`);
+      toast.success(`Billing cycle created successfully. ${res.data.created} payment record(s) generated.`);
       setShowCreateModal(false);
       fetchPayments();
     } catch (err) {
-      toast.error(err.response?.data?.message || 'Failed to create payments');
+      toast.error(err.response?.data?.message || 'Unable to create the billing cycle.');
     } finally {
       setCreating(false);
     }
@@ -61,12 +61,12 @@ const Payments = () => {
 
   const handleMarkPaid = async (payment) => {
     const remaining = parseFloat(payment.amount) - parseFloat(payment.amountPaid);
-    if (remaining <= 0) { toast.error('Already fully paid'); return; }
+    if (remaining <= 0) { toast.error('This payment has already been settled in full.'); return; }
     try {
       await api.put(`/payments/${payment.id}/record`, { amountPaid: remaining });
-      toast.success('Marked as paid');
+      toast.success('Payment recorded successfully.');
       fetchPayments();
-    } catch (err) { toast.error(err.response?.data?.message || 'Failed'); }
+    } catch (err) { toast.error(err.response?.data?.message || 'Unable to record the payment.'); }
   };
 
   const handlePrintBilling = (p) => {
@@ -117,23 +117,23 @@ const Payments = () => {
 
   return (
     <div>
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6 rounded-2xl border border-slate-700/50 bg-slate-900/45 px-5 py-4">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Payments</h1>
-          <p className="text-sm text-gray-500 mt-1">
-            {billingLabel ? `Current billing cycle: ${billingLabel}` : 'No active billing cycle — click Create Payment to start'}
+          <h1 className="text-2xl font-bold text-slate-100">Payments</h1>
+          <p className="text-sm text-slate-400 mt-1">
+            {billingLabel ? `Current billing cycle: ${billingLabel}` : 'No active billing cycle. Create a billing cycle to begin.'}
           </p>
         </div>
         <button onClick={() => setShowCreateModal(true)}
-          className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 text-sm font-medium whitespace-nowrap">
-          + Create Payment
+          className="px-4 py-2 bg-emerald-500 text-white rounded-lg hover:bg-emerald-600 text-sm font-medium whitespace-nowrap transition-colors">
+          + Create Billing Cycle
         </button>
       </div>
 
       <div className="flex flex-col sm:flex-row gap-3 mb-4">
-        <div className="flex-1"><SearchBar value={search} onChange={(v) => { setSearch(v); setPage(1); }} placeholder="Search by tenant name..." /></div>
+        <div className="flex-1"><SearchBar value={search} onChange={(v) => { setSearch(v); setPage(1); }} placeholder="Search payment records by tenant..." /></div>
         <select value={statusFilter} onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }}
-          className="px-3 py-2 border border-gray-300 rounded-lg text-sm">
+          className="px-3 py-2 border border-slate-700 rounded-lg text-sm bg-slate-900/70 text-slate-100">
           <option value="">All Status</option>
           <option value="paid">Paid</option>
           <option value="unpaid">Unpaid</option>
@@ -143,10 +143,10 @@ const Payments = () => {
 
       {/* Create Payment Modal */}
       {showCreateModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-          <div className="bg-white rounded-xl shadow-xl max-w-sm w-full mx-4 p-6">
-            <h2 className="text-lg font-semibold mb-1">Create Monthly Billing</h2>
-            <p className="text-xs text-gray-400 mb-4">Generates a payment record for every active tenant. Due date is automatically set to the last day of the selected month.</p>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+          <div className="bg-slate-900/95 border border-slate-700 rounded-xl shadow-xl max-w-sm w-full mx-4 p-6 text-slate-100">
+            <h2 className="text-lg font-semibold mb-1">Create Monthly Billing Cycle</h2>
+            <p className="text-xs text-slate-400 mb-4">This will generate a payment record for every active tenant. The due date will automatically be set to the last day of the selected month.</p>
             <div className="grid grid-cols-2 gap-3 mb-5">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Month</label>
@@ -168,10 +168,10 @@ const Payments = () => {
               </div>
             </div>
             <div className="flex justify-end gap-3">
-              <button onClick={() => setShowCreateModal(false)} className="px-4 py-2 text-sm text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200">Cancel</button>
+              <button onClick={() => setShowCreateModal(false)} className="px-4 py-2 text-sm text-slate-200 bg-slate-800 rounded-lg hover:bg-slate-700">Cancel</button>
               <button onClick={handleCreateBatch} disabled={creating}
                 className="px-4 py-2 text-sm text-white bg-primary-600 rounded-lg hover:bg-primary-700 disabled:opacity-50">
-                {creating ? 'Creating...' : 'Create'}
+                {creating ? 'Creating...' : 'Create Cycle'}
               </button>
             </div>
           </div>
@@ -180,11 +180,11 @@ const Payments = () => {
 
       {/* Billing Modal */}
       {showBilling && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-          <div className="bg-white rounded-xl shadow-xl max-w-md w-full mx-4 p-6">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+          <div className="bg-slate-900/95 border border-slate-700 rounded-xl shadow-xl max-w-md w-full mx-4 p-6 text-slate-100">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-lg font-semibold">Billing Statement</h2>
-              <button onClick={() => setShowBilling(null)} className="text-gray-400 hover:text-gray-600 text-xl leading-none">&times;</button>
+              <button onClick={() => setShowBilling(null)} className="text-slate-400 hover:text-slate-200 text-xl leading-none">&times;</button>
             </div>
             <div className="space-y-3 text-sm">
               <div className="flex justify-between py-2 border-b border-gray-100">
@@ -204,7 +204,7 @@ const Payments = () => {
                 <span className="font-medium">₱{parseFloat(showBilling.amount).toLocaleString()}</span>
               </div>
               <div className="flex justify-between py-2 border-b border-gray-100">
-                <span className="text-gray-500">Receipt No.</span>
+                <span className="text-gray-500">Receipt Number</span>
                 <span className="font-mono text-xs">{showBilling.receiptNumber || '—'}</span>
               </div>
               {showBilling.paymentDate && (
@@ -217,9 +217,9 @@ const Payments = () => {
             <div className="flex justify-between items-center mt-5">
               <button onClick={() => handlePrintBilling(showBilling)}
                 className="px-4 py-2 text-sm text-white bg-blue-600 rounded-lg hover:bg-blue-700 flex items-center gap-2">
-                🖨️ Print
+                Print Statement
               </button>
-              <button onClick={() => setShowBilling(null)} className="px-4 py-2 text-sm text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200">Close</button>
+              <button onClick={() => setShowBilling(null)} className="px-4 py-2 text-sm text-slate-200 bg-slate-800 rounded-lg hover:bg-slate-700">Close</button>
             </div>
           </div>
         </div>
@@ -248,16 +248,16 @@ const Payments = () => {
                 <td className="px-4 py-3 hidden lg:table-cell">{p.dueDate}</td>
                 <td className="px-4 py-3">
                   <div className="flex gap-2">
-                    <button onClick={() => setShowBilling(p)} className="px-2 py-1 text-xs font-medium text-blue-600 bg-blue-50 rounded hover:bg-blue-100">Billing</button>
+                    <button onClick={() => setShowBilling(p)} className="px-2 py-1 text-xs font-medium text-blue-200 bg-blue-500/15 rounded border border-blue-400/30 hover:bg-blue-500/25">View Statement</button>
                     {p.status !== 'paid' && (
-                      <button onClick={() => handleMarkPaid(p)} className="px-2 py-1 text-xs font-medium text-green-600 bg-green-50 rounded hover:bg-green-100">Paid</button>
+                      <button onClick={() => handleMarkPaid(p)} className="px-2 py-1 text-xs font-medium text-emerald-200 bg-emerald-500/15 rounded border border-emerald-400/30 hover:bg-emerald-500/25">Record Payment</button>
                     )}
                   </div>
                 </td>
               </tr>
             ))}
             {payments.length === 0 && (
-              <tr><td colSpan={5} className="px-4 py-8 text-center text-gray-400">No payments found</td></tr>
+              <tr><td colSpan={5} className="px-4 py-8 text-center text-gray-400">No payment records found.</td></tr>
             )}
           </tbody>
         </table>

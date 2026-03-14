@@ -15,16 +15,16 @@ const Login = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!email || !password) {
-      toast.error('Please fill in all fields');
+      toast.error('Please enter both your email address and password.');
       return;
     }
     setLoading(true);
     try {
-      const user = await login(email, password);
-      toast.success('Login successful');
+      await login(email, password);
+      toast.success('Signed in successfully.');
       navigate('/admin');
     } catch (err) {
-      toast.error(err.response?.data?.message || 'Login failed');
+      toast.error(err.response?.data?.message || 'Unable to sign in.');
     } finally {
       setLoading(false);
     }
@@ -36,7 +36,7 @@ const Login = () => {
         <div className="text-center mb-8">
           <img src="/Bisu.png" alt="BISU Logo" className="w-20 h-20 rounded-full mx-auto mb-3 object-cover shadow-md" />
           <h1 className="text-2xl font-bold text-primary-800">BISU Boy&apos;s Dormitory</h1>
-          <p className="text-sm text-gray-500 mt-1">Management System</p>
+          <p className="text-sm text-gray-500 mt-1">Dormitory Management System</p>
           <p className="text-xs text-gray-400 mt-0.5">Bohol Island State University</p>
         </div>
 
@@ -48,7 +48,7 @@ const Login = () => {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
-              placeholder="your@email.com"
+              placeholder="name@example.com"
               required
             />
           </div>
@@ -84,7 +84,7 @@ const Login = () => {
 
         <div className="mt-4 text-center">
           <Link to="/forgot-password" className="text-sm text-primary-600 hover:underline">
-            Forgot Password?
+            Forgot your password?
           </Link>
         </div>
       </div>

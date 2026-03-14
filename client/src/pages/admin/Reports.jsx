@@ -23,9 +23,9 @@ const Reports = () => {
       a.download = `${reportType}-report.${ext}`;
       a.click();
       URL.revokeObjectURL(url);
-      toast.success('Report downloaded');
+      toast.success('Report downloaded successfully.');
     } catch {
-      toast.error('Failed to generate report');
+      toast.error('Unable to generate the report.');
     } finally {
       setLoading(false);
     }
@@ -40,31 +40,36 @@ const Reports = () => {
 
   return (
     <div>
-      <h1 className="text-2xl font-bold text-gray-900 mb-6">Reports</h1>
+      <div className="flex items-center justify-between gap-3 mb-6 rounded-2xl border border-slate-700/50 bg-slate-900/45 px-5 py-4">
+        <div>
+          <h1 className="text-2xl font-bold text-slate-100">Reports Center</h1>
+          <p className="text-sm text-slate-400">Generate and export operational reports for the dormitory.</p>
+        </div>
+      </div>
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
         {reportTypes.map(rt => (
           <div key={rt.value}
             className={`bg-white rounded-xl shadow-sm border-2 p-5 cursor-pointer transition ${
-              reportType === rt.value ? 'border-primary-500 ring-2 ring-primary-100' : 'border-gray-100 hover:border-gray-200'
+              reportType === rt.value ? 'border-primary-500 ring-2 ring-primary-500/25' : 'border-gray-100 hover:border-slate-500/50'
             }`}
             onClick={() => setReportType(rt.value)}>
-            <h3 className="font-semibold text-gray-900 mb-1">{rt.label}</h3>
-            <p className="text-xs text-gray-500">{rt.desc}</p>
+            <h3 className="font-semibold text-slate-100 mb-1">{rt.label}</h3>
+            <p className="text-xs text-slate-400">{rt.desc}</p>
           </div>
         ))}
       </div>
 
       <div className="mt-8 bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-        <h2 className="text-lg font-semibold text-gray-900 mb-2">Export: <span className="capitalize">{reportType}</span></h2>
-        <p className="text-sm text-gray-500 mb-4">Choose a format to download the report.</p>
+        <h2 className="text-lg font-semibold text-slate-100 mb-2">Export Report: <span className="capitalize">{reportType}</span></h2>
+        <p className="text-sm text-slate-400 mb-4">Select a file format to download the report.</p>
         <div className="flex gap-4">
           <button onClick={() => downloadReport('pdf')} disabled={loading}
-            className="flex items-center gap-2 px-5 py-2.5 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700 disabled:opacity-50">
+            className="flex items-center gap-2 px-5 py-2.5 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700 disabled:opacity-50 transition-colors">
             <FaFilePdf /> Download PDF
           </button>
           <button onClick={() => downloadReport('excel')} disabled={loading}
-            className="flex items-center gap-2 px-5 py-2.5 text-sm font-medium text-white bg-green-600 rounded-lg hover:bg-green-700 disabled:opacity-50">
+            className="flex items-center gap-2 px-5 py-2.5 text-sm font-medium text-white bg-emerald-600 rounded-lg hover:bg-emerald-700 disabled:opacity-50 transition-colors">
             <FaFileExcel /> Download Excel
           </button>
         </div>

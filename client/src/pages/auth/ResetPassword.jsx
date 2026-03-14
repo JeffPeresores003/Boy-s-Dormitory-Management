@@ -12,16 +12,16 @@ const ResetPassword = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (password.length < 6) {
-      toast.error('Password must be at least 6 characters');
+      toast.error('Your new password must be at least 6 characters long.');
       return;
     }
     setLoading(true);
     try {
       await api.post('/auth/reset-password', { token, password });
-      toast.success('Password reset successfully');
+      toast.success('Password updated successfully.');
       navigate('/login');
     } catch (err) {
-      toast.error(err.response?.data?.message || 'Reset failed');
+      toast.error(err.response?.data?.message || 'Unable to reset the password.');
     } finally {
       setLoading(false);
     }
@@ -31,6 +31,7 @@ const ResetPassword = () => {
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-primary-800 to-primary-600 px-4">
       <div className="max-w-md w-full bg-white rounded-2xl shadow-xl p-8">
         <h2 className="text-xl font-bold text-gray-900 text-center">Reset Password</h2>
+        <p className="text-sm text-gray-500 text-center mt-1">Enter your reset token and choose a new password.</p>
 
         <form onSubmit={handleSubmit} className="mt-6 space-y-5">
           <div>
@@ -60,12 +61,12 @@ const ResetPassword = () => {
             disabled={loading}
             className="w-full py-2.5 bg-primary-600 text-white font-medium rounded-lg hover:bg-primary-700 disabled:opacity-50"
           >
-            {loading ? 'Resetting...' : 'Reset Password'}
+            {loading ? 'Updating...' : 'Update Password'}
           </button>
         </form>
 
         <div className="mt-4 text-center">
-          <Link to="/login" className="text-sm text-primary-600 hover:underline">Back to Login</Link>
+          <Link to="/login" className="text-sm text-primary-600 hover:underline">Back to Sign In</Link>
         </div>
       </div>
     </div>

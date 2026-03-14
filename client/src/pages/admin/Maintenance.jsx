@@ -27,7 +27,7 @@ const Maintenance = () => {
       const res = await api.get('/maintenance', { params: { page, limit: 10, search, status: statusFilter } });
       setRequests(res.data.requests);
       setTotalPages(res.data.totalPages);
-    } catch { toast.error('Failed to load requests'); }
+    } catch { toast.error('Unable to load maintenance requests.'); }
   }, [page, search, statusFilter]);
 
   useEffect(() => { fetchRequests(); }, [fetchRequests]);
@@ -41,29 +41,32 @@ const Maintenance = () => {
   const handleUpdate = async () => {
     try {
       await api.put(`/maintenance/${editingReq.id}`, { status: editStatus, adminNotes: editNotes });
-      toast.success('Request updated');
+      toast.success('Maintenance request updated successfully.');
       setEditingReq(null);
       fetchRequests();
-    } catch (err) { toast.error(err.response?.data?.message || 'Update failed'); }
+    } catch (err) { toast.error(err.response?.data?.message || 'Unable to update the maintenance request.'); }
   };
 
   const handleDelete = async () => {
     try {
       await api.delete(`/maintenance/${confirmModal.id}`);
-      toast.success('Request deleted');
+      toast.success('Maintenance request deleted successfully.');
       setConfirmModal({ open: false, id: null });
       fetchRequests();
-    } catch { toast.error('Delete failed'); }
+    } catch { toast.error('Unable to delete the maintenance request.'); }
   };
 
   return (
     <div>
-      <h1 className="text-2xl font-bold text-gray-900 mb-6">Maintenance Requests</h1>
+      <div className="mb-6 rounded-2xl border border-slate-700/50 bg-slate-900/45 px-5 py-4">
+        <h1 className="text-2xl font-bold text-slate-100">Maintenance Requests</h1>
+        <p className="text-sm text-slate-400 mt-1">Track, review, and resolve room maintenance concerns.</p>
+      </div>
 
       <div className="flex flex-col sm:flex-row gap-3 mb-4">
-        <div className="flex-1"><SearchBar value={search} onChange={(v) => { setSearch(v); setPage(1); }} placeholder="Search by title..." /></div>
+        <div className="flex-1"><SearchBar value={search} onChange={(v) => { setSearch(v); setPage(1); }} placeholder="Search maintenance requests..." /></div>
         <select value={statusFilter} onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }}
-          className="px-3 py-2 border border-gray-300 rounded-lg text-sm">
+          className="px-3 py-2 border border-slate-700 rounded-lg text-sm bg-slate-900/70 text-slate-100">
           <option value="">All Status</option>
           <option value="pending">Pending</option>
           <option value="in-progress">In Progress</option>
@@ -73,12 +76,12 @@ const Maintenance = () => {
 
       {/* Edit Modal */}
       {editingReq && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-          <div className="bg-white rounded-xl shadow-xl max-w-lg w-full mx-4 p-6">
-            <h2 className="text-lg font-semibold mb-2">Update Request</h2>
-            <p className="text-sm text-gray-500 mb-1"><strong>Title:</strong> {editingReq.title}</p>
-            <p className="text-sm text-gray-500 mb-1"><strong>Description:</strong> {editingReq.description}</p>
-            <p className="text-sm text-gray-500 mb-4"><strong>By:</strong> {editingReq.tenant?.firstName} {editingReq.tenant?.lastName} | <strong>Room:</strong> {editingReq.room?.roomNumber}</p>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+          <div className="bg-slate-900/95 border border-slate-700 rounded-xl shadow-xl max-w-lg w-full mx-4 p-6 text-slate-100">
+            <h2 className="text-lg font-semibold mb-2">Update Maintenance Request</h2>
+            <p className="text-sm text-slate-300 mb-1"><strong>Title:</strong> {editingReq.title}</p>
+            <p className="text-sm text-slate-300 mb-1"><strong>Description:</strong> {editingReq.description}</p>
+            <p className="text-sm text-slate-300 mb-4"><strong>Requested by:</strong> {editingReq.tenant?.firstName} {editingReq.tenant?.lastName} | <strong>Room:</strong> {editingReq.room?.roomNumber}</p>
             <div className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
@@ -95,8 +98,8 @@ const Maintenance = () => {
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" rows="3" />
               </div>
               <div className="flex justify-end gap-3">
-                <button onClick={() => setEditingReq(null)} className="px-4 py-2 text-sm text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200">Cancel</button>
-                <button onClick={handleUpdate} className="px-4 py-2 text-sm text-white bg-primary-600 rounded-lg hover:bg-primary-700">Update</button>
+                <button onClick={() => setEditingReq(null)} className="px-4 py-2 text-sm text-slate-200 bg-slate-800 rounded-lg hover:bg-slate-700">Cancel</button>
+                <button onClick={handleUpdate} className="px-4 py-2 text-sm text-white bg-primary-600 rounded-lg hover:bg-primary-700">Save Changes</button>
               </div>
             </div>
           </div>
@@ -127,21 +130,21 @@ const Maintenance = () => {
                 <td className="px-4 py-3 hidden lg:table-cell text-xs">{new Date(r.createdAt).toLocaleDateString()}</td>
                 <td className="px-4 py-3">
                   <div className="flex gap-2">
-                    <button onClick={() => openEdit(r)} className="text-primary-600 hover:underline text-xs">Update</button>
+                    <button onClick={() => openEdit(r)} className="px-2 py-1 text-xs font-medium text-blue-200 bg-blue-500/15 rounded border border-blue-400/30 hover:bg-blue-500/25">Review</button>
                     <button onClick={() => setConfirmModal({ open: true, id: r.id })} className="text-red-600 hover:underline text-xs">Delete</button>
                   </div>
                 </td>
               </tr>
             ))}
             {requests.length === 0 && (
-              <tr><td colSpan={6} className="px-4 py-8 text-center text-gray-400">No maintenance requests</td></tr>
+              <tr><td colSpan={6} className="px-4 py-8 text-center text-gray-400">No maintenance requests found.</td></tr>
             )}
           </tbody>
         </table>
       </div>
 
       <Pagination page={page} totalPages={totalPages} onPageChange={setPage} />
-      <ConfirmModal open={confirmModal.open} title="Delete Request" message="Are you sure?"
+      <ConfirmModal open={confirmModal.open} title="Delete Maintenance Request" message="Are you sure you want to delete this maintenance request?"
         onConfirm={handleDelete} onCancel={() => setConfirmModal({ open: false, id: null })} />
     </div>
   );
