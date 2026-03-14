@@ -170,7 +170,6 @@ const AdminDashboard = () => {
       <section className="space-y-4">
         <div className="flex items-center justify-between">
           <h2 className="text-sm font-semibold uppercase tracking-[0.12em] text-slate-400">Core Metrics</h2>
-          <p className="text-xs text-slate-400">Live operational snapshot</p>
         </div>
 
         {loadingStats && !stats ? (
@@ -263,7 +262,6 @@ const AdminDashboard = () => {
         <section className="space-y-4">
           <div className="flex items-center justify-between">
             <h2 className="text-sm font-semibold uppercase tracking-[0.12em] text-slate-400">Operational Analytics</h2>
-            <p className="text-xs text-slate-400">Updated in the background</p>
           </div>
 
           <Suspense fallback={<SectionLoader title="Loading Analytics" subtitle="Preparing chart visualizations and trends." />}>
