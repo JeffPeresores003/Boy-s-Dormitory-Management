@@ -4,9 +4,13 @@ import toast from 'react-hot-toast';
 import SearchBar from '../../components/SearchBar';
 import Pagination from '../../components/Pagination';
 import ConfirmModal from '../../components/ConfirmModal';
+import AdminPageHeader from '../../components/AdminPageHeader';
+import ActionButton from '../../components/ActionButton';
+import SectionLoader from '../../components/SectionLoader';
 
 const Announcements = () => {
   const [announcements, setAnnouncements] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [search, setSearch] = useState('');
@@ -16,11 +20,13 @@ const Announcements = () => {
   const [form, setForm] = useState({ title: '', content: '', category: 'general' });
 
   const fetchAnnouncements = useCallback(async () => {
+    setLoading(true);
     try {
       const res = await api.get('/announcements', { params: { page, limit: 10, search } });
       setAnnouncements(res.data.announcements);
       setTotalPages(res.data.totalPages);
-    } catch { toast.error('Failed to load announcements'); }
+    } catch { toast.error('Unable to load announcements.'); }
+    finally { setLoading(false); }
   }, [page, search]);
 
   useEffect(() => { fetchAnnouncements(); }, [fetchAnnouncements]);
@@ -38,34 +44,36 @@ const Announcements = () => {
     try {
       if (editing) {
         await api.put(`/announcements/${editing.id}`, form);
-        toast.success('Announcement updated');
+        toast.success('Announcement updated successfully.');
       } else {
         await api.post('/announcements', form);
-        toast.success('Announcement created');
+        toast.success('Announcement published successfully.');
       }
       resetForm();
       fetchAnnouncements();
-    } catch (err) { toast.error(err.response?.data?.message || 'Operation failed'); }
+    } catch (err) { toast.error(err.response?.data?.message || 'Unable to save the announcement.'); }
   };
 
   const handleDelete = async () => {
     try {
       await api.delete(`/announcements/${confirmModal.id}`);
-      toast.success('Announcement deleted');
+      toast.success('Announcement deleted successfully.');
       setConfirmModal({ open: false, id: null });
       fetchAnnouncements();
-    } catch { toast.error('Delete failed'); }
+    } catch { toast.error('Unable to delete the announcement.'); }
   };
 
   return (
     <div>
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">Announcements</h1>
-        <button onClick={() => { resetForm(); setShowForm(true); }}
-          className="px-4 py-2 text-sm font-medium text-white bg-primary-600 rounded-lg hover:bg-primary-700">
-          + New Announcement
-        </button>
-      </div>
+      <AdminPageHeader
+        title="Announcements"
+        subtitle="Share official updates with tenants and staff."
+        actions={
+          <ActionButton variant="success" onClick={() => { resetForm(); setShowForm(true); }}>
+            + Create Announcement
+          </ActionButton>
+        }
+      />
 
       <div className="mb-4">
         <SearchBar value={search} onChange={(v) => { setSearch(v); setPage(1); }} placeholder="Search announcements..." />
@@ -73,9 +81,9 @@ const Announcements = () => {
 
       {/* Form Modal */}
       {showForm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-          <div className="bg-white rounded-xl shadow-xl max-w-lg w-full mx-4 p-6">
-            <h2 className="text-lg font-semibold mb-4">{editing ? 'Edit' : 'New'} Announcement</h2>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+          <div className="bg-slate-900/95 border border-slate-700 rounded-xl shadow-xl max-w-lg w-full mx-4 p-6 text-slate-100">
+            <h2 className="text-lg font-semibold mb-4">{editing ? 'Edit Announcement' : 'Create Announcement'}</h2>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Title</label>
@@ -93,13 +101,13 @@ const Announcements = () => {
                 </select>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Content</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Message</label>
                 <textarea required value={form.content} onChange={(e) => setForm({ ...form, content: e.target.value })}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" rows="5" />
               </div>
               <div className="flex justify-end gap-3">
-                <button type="button" onClick={resetForm} className="px-4 py-2 text-sm text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200">Cancel</button>
-                <button type="submit" className="px-4 py-2 text-sm text-white bg-primary-600 rounded-lg hover:bg-primary-700">{editing ? 'Update' : 'Create'}</button>
+                <ActionButton type="button" variant="neutral" onClick={resetForm}>Cancel</ActionButton>
+                <ActionButton type="submit">{editing ? 'Save Changes' : 'Publish Announcement'}</ActionButton>
               </div>
             </form>
           </div>
@@ -107,36 +115,42 @@ const Announcements = () => {
       )}
 
       <div className="space-y-4">
-        {announcements.map(a => (
-          <div key={a.id} className="bg-white rounded-xl shadow-sm border border-gray-100 p-5">
-            <div className="flex justify-between items-start">
-              <div>
-                <div className="flex items-center gap-2 mb-1">
-                  <h3 className="text-base font-semibold text-gray-900">{a.title}</h3>
-                  <span className={`px-2 py-0.5 rounded-full text-xs font-medium capitalize ${
-                    a.category === 'important' ? 'bg-red-100 text-red-700' :
-                    a.category === 'event' ? 'bg-purple-100 text-purple-700' :
-                    a.category === 'maintenance' ? 'bg-orange-100 text-orange-700' :
-                    'bg-gray-100 text-gray-700'
-                  }`}>{a.category || 'general'}</span>
+        {loading ? (
+          <SectionLoader title="Loading Announcements" subtitle="Preparing the latest published updates." />
+        ) : (
+          <>
+            {announcements.map(a => (
+              <div key={a.id} className="bg-white rounded-xl shadow-sm border border-gray-100 p-5">
+                <div className="flex justify-between items-start">
+                  <div>
+                    <div className="flex items-center gap-2 mb-1">
+                      <h3 className="text-base font-semibold text-gray-900">{a.title}</h3>
+                      <span className={`px-2 py-0.5 rounded-full text-xs font-medium capitalize ${
+                        a.category === 'important' ? 'bg-red-100 text-red-700' :
+                        a.category === 'event' ? 'bg-purple-100 text-purple-700' :
+                        a.category === 'maintenance' ? 'bg-orange-100 text-orange-700' :
+                        'bg-gray-100 text-gray-700'
+                      }`}>{a.category || 'general'}</span>
+                    </div>
+                    <p className="text-sm text-gray-600 whitespace-pre-line mb-2">{a.content}</p>
+                    <p className="text-xs text-gray-400">Posted by {a.user?.firstName} {a.user?.lastName} on {new Date(a.createdAt).toLocaleDateString()}</p>
+                  </div>
+                  <div className="flex gap-2 ml-4 shrink-0">
+                    <button onClick={() => openEdit(a)} className="px-2 py-1 text-xs font-medium text-blue-200 bg-blue-500/15 rounded border border-blue-400/30 hover:bg-blue-500/25">Edit</button>
+                    <button onClick={() => setConfirmModal({ open: true, id: a.id })} className="text-red-600 hover:underline text-xs">Delete</button>
+                  </div>
                 </div>
-                <p className="text-sm text-gray-600 whitespace-pre-line mb-2">{a.content}</p>
-                <p className="text-xs text-gray-400">Posted by {a.user?.firstName} {a.user?.lastName} on {new Date(a.createdAt).toLocaleDateString()}</p>
               </div>
-              <div className="flex gap-2 ml-4 shrink-0">
-                <button onClick={() => openEdit(a)} className="text-primary-600 hover:underline text-xs">Edit</button>
-                <button onClick={() => setConfirmModal({ open: true, id: a.id })} className="text-red-600 hover:underline text-xs">Delete</button>
-              </div>
-            </div>
-          </div>
-        ))}
-        {announcements.length === 0 && (
-          <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-8 text-center text-gray-400">No announcements</div>
+            ))}
+            {announcements.length === 0 && (
+              <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-8 text-center text-gray-400">No announcements are available.</div>
+            )}
+          </>
         )}
       </div>
 
       <div className="mt-4"><Pagination page={page} totalPages={totalPages} onPageChange={setPage} /></div>
-      <ConfirmModal open={confirmModal.open} title="Delete Announcement" message="Are you sure?"
+      <ConfirmModal open={confirmModal.open} title="Delete Announcement" message="Are you sure you want to delete this announcement?"
         onConfirm={handleDelete} onCancel={() => setConfirmModal({ open: false, id: null })} />
     </div>
   );

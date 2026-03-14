@@ -12,25 +12,26 @@ const ResetPassword = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (password.length < 6) {
-      toast.error('Password must be at least 6 characters');
+      toast.error('Your new password must be at least 6 characters long.');
       return;
     }
     setLoading(true);
     try {
       await api.post('/auth/reset-password', { token, password });
-      toast.success('Password reset successfully');
+      toast.success('Password updated successfully.');
       navigate('/login');
     } catch (err) {
-      toast.error(err.response?.data?.message || 'Reset failed');
+      toast.error(err.response?.data?.message || 'Unable to reset the password.');
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-primary-800 to-primary-600 px-4">
-      <div className="max-w-md w-full bg-white rounded-2xl shadow-xl p-8">
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-primary-800 via-primary-700 to-primary-600 px-4">
+      <div className="max-w-md w-full bg-white rounded-2xl shadow-2xl p-8 border border-white/50">
         <h2 className="text-xl font-bold text-gray-900 text-center">Reset Password</h2>
+        <p className="text-sm text-gray-500 text-center mt-1">Enter your reset token and choose a new password.</p>
 
         <form onSubmit={handleSubmit} className="mt-6 space-y-5">
           <div>
@@ -39,7 +40,7 @@ const ResetPassword = () => {
               type="text"
               value={token}
               onChange={(e) => setToken(e.target.value)}
-              className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 text-sm"
+              className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 text-sm shadow-sm"
               placeholder="Paste your reset token"
               required
             />
@@ -50,7 +51,7 @@ const ResetPassword = () => {
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+              className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 shadow-sm"
               placeholder="Min 6 characters"
               required
             />
@@ -58,14 +59,14 @@ const ResetPassword = () => {
           <button
             type="submit"
             disabled={loading}
-            className="w-full py-2.5 bg-primary-600 text-white font-medium rounded-lg hover:bg-primary-700 disabled:opacity-50"
+            className="w-full py-2.5 bg-primary-600 text-white font-semibold rounded-lg hover:bg-primary-700 disabled:opacity-50 shadow-sm"
           >
-            {loading ? 'Resetting...' : 'Reset Password'}
+            {loading ? 'Updating...' : 'Update Password'}
           </button>
         </form>
 
         <div className="mt-4 text-center">
-          <Link to="/login" className="text-sm text-primary-600 hover:underline">Back to Login</Link>
+          <Link to="/login" className="text-sm text-primary-600 hover:underline">Back to Sign In</Link>
         </div>
       </div>
     </div>

@@ -1,49 +1,89 @@
+import { lazy, Suspense } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { useAuth } from './context/AuthContext';
 import ProtectedRoute from './components/ProtectedRoute';
-import Layout from './components/Layout';
+import LoadingScreen from './components/LoadingScreen';
+
+const Layout = lazy(() => import('./components/Layout'));
 
 // Auth pages
 import Login from './pages/auth/Login';
 import ForgotPassword from './pages/auth/ForgotPassword';
 import ResetPassword from './pages/auth/ResetPassword';
+import Welcome from './pages/auth/Welcome';
 
 // Admin pages
-import AdminDashboard from './pages/admin/Dashboard';
-import AdminTenants from './pages/admin/Tenants';
-import AdminRooms from './pages/admin/Rooms';
-import AdminPayments from './pages/admin/Payments';
-import AdminPaymentRecords from './pages/admin/PaymentRecords';
-import AdminVisitors from './pages/admin/Visitors';
-import AdminReports from './pages/admin/Reports';
+const AdminDashboard = lazy(() => import('./pages/admin/Dashboard'));
+const AdminTenants = lazy(() => import('./pages/admin/Tenants'));
+const AdminRooms = lazy(() => import('./pages/admin/Rooms'));
+const AdminPayments = lazy(() => import('./pages/admin/Payments'));
+const AdminPaymentRecords = lazy(() => import('./pages/admin/PaymentRecords'));
+const AdminVisitors = lazy(() => import('./pages/admin/Visitors'));
+const AdminReports = lazy(() => import('./pages/admin/Reports'));
+
+const AnimatedLoader = ({ title = 'Loading...', subtitle = 'Please wait.' }) => (
+  <div className="min-h-screen flex items-center justify-center px-4">
+    <div className="w-full max-w-sm rounded-2xl border border-slate-700/55 bg-slate-900/70 px-6 py-5 shadow-xl backdrop-blur-xl">
+      <div className="flex items-center gap-3">
+        <div className="relative h-9 w-9 shrink-0">
+          <span className="absolute inset-0 rounded-full border-2 border-blue-400/30" />
+          <span className="absolute inset-0 rounded-full border-2 border-transparent border-t-blue-400 animate-spin" />
+        </div>
+        <div>
+          <p className="text-sm font-semibold text-slate-100">{title}</p>
+          <p className="text-xs text-slate-400">{subtitle}</p>
+        </div>
+      </div>
+      <div className="mt-4 h-1.5 w-full overflow-hidden rounded-full bg-slate-800">
+        <span className="block h-full w-1/3 rounded-full bg-blue-500 animate-pulse" />
+      </div>
+    </div>
+  </div>
+);
+
+const RouteFallback = () => (
+  <div className="h-0" aria-hidden="true" />
+);
+
+const withSuspense = (element) => (
+  <Suspense fallback={<RouteFallback />}>
+    {element}
+  </Suspense>
+);
 
 const App = () => {
-  const { user, loading } = useAuth();
+  const { user, loading, authTransition } = useAuth();
+
+  if (authTransition.loading) {
+    return (
+      <LoadingScreen
+        title={authTransition.title}
+        subtitle={authTransition.subtitle}
+      />
+    );
+  }
 
   if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-primary-600" />
-      </div>
-    );
+    return null;
   }
 
   return (
     <Routes>
       {/* Auth routes */}
-      <Route path="/login" element={user ? <Navigate to="/admin" /> : <Login />} />
+      <Route path="/login" element={user ? <Navigate to="/welcome" /> : <Login />} />
+      <Route path="/welcome" element={<Welcome />} />
       <Route path="/forgot-password" element={<ForgotPassword />} />
       <Route path="/reset-password/:token" element={<ResetPassword />} />
 
       {/* Admin routes */}
-      <Route path="/admin" element={<ProtectedRoute><Layout /></ProtectedRoute>}>
-        <Route index element={<AdminDashboard />} />
-        <Route path="tenants" element={<AdminTenants />} />
-        <Route path="rooms" element={<AdminRooms />} />
-        <Route path="payments" element={<AdminPayments />} />
-        <Route path="payment-records" element={<AdminPaymentRecords />} />
-        <Route path="visitors" element={<AdminVisitors />} />
-        <Route path="reports" element={<AdminReports />} />
+      <Route path="/admin" element={<ProtectedRoute>{withSuspense(<Layout />)}</ProtectedRoute>}>
+        <Route index element={withSuspense(<AdminDashboard />)} />
+        <Route path="tenants" element={withSuspense(<AdminTenants />)} />
+        <Route path="rooms" element={withSuspense(<AdminRooms />)} />
+        <Route path="payments" element={withSuspense(<AdminPayments />)} />
+        <Route path="payment-records" element={withSuspense(<AdminPaymentRecords />)} />
+        <Route path="visitors" element={withSuspense(<AdminVisitors />)} />
+        <Route path="reports" element={withSuspense(<AdminReports />)} />
       </Route>
 
       {/* Default redirect */}
