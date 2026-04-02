@@ -29,7 +29,9 @@ const Navbar = ({ onMenuClick }) => {
 
       <div className="hidden md:block min-w-[280px] text-right">
         <div className="inline-block px-4 py-2 rounded-xl bg-slate-900/70 border border-slate-700/60 shadow-md">
-          <h2 className="text-sm font-semibold text-primary-300 tracking-wide">{now}</h2>
+          <h2 className={`text-sm font-semibold tracking-wide ${theme === 'dark' ? 'text-primary-300' : 'text-primary-700'}`}>
+            {now}
+          </h2>
         </div>
       </div>
 

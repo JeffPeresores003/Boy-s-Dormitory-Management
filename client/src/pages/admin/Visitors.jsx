@@ -7,8 +7,10 @@ import ConfirmModal from '../../components/ConfirmModal';
 import SkeletonList from '../../shared/SkeletonList';
 import AdminPageHeader from '../../components/AdminPageHeader';
 import ActionButton from '../../components/ActionButton';
+import { useTheme } from '../../context/ThemeContext';
 
 const Visitors = () => {
+  const { theme } = useTheme();
   const [visitors, setVisitors] = useState([]);
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
@@ -150,7 +152,16 @@ const Visitors = () => {
                       {!v.timeOut && (
                         <button onClick={() => handleCheckout(v.id)} className="px-2 py-1 text-xs font-medium text-emerald-200 bg-emerald-500/15 rounded border border-emerald-400/30 hover:bg-emerald-500/25">Checkout</button>
                       )}
-                      <button onClick={() => setConfirmModal({ open: true, id: v.id })} className="px-2 py-1 text-xs font-medium text-red-200 bg-red-500/15 rounded border border-red-400/30 hover:bg-red-500/25">Delete</button>
+                      <button
+                        onClick={() => setConfirmModal({ open: true, id: v.id })}
+                        className={`px-2 py-1 text-xs font-medium rounded border transition-colors ${
+                          theme === 'dark'
+                            ? 'text-red-200 bg-red-500/15 border-red-400/30 hover:bg-red-500/25'
+                            : 'text-red-700 bg-red-100 border-red-300 hover:bg-red-200'
+                        }`}
+                      >
+                        Delete
+                      </button>
                     </div>
                   </td>
                 </tr>
