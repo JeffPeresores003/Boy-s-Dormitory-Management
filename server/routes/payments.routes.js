@@ -2,6 +2,7 @@
 const express = require('express');
 const pool = require('../config/config');
 const { protect, authorize } = require('../middleware/authMiddleware');
+const { logActivity } = require('../utils/activityLogger');
 const router = express.Router();
 
 // All routes require admin authentication
@@ -134,7 +135,7 @@ router.get("/records", async (req, res) => {
       SELECT pr.id, pr.tenantId, pr.amount, pr.amountPaid, pr.billingMonth,
              DATE_FORMAT(pr.dueDate, '%Y-%m-%d') AS dueDate,
              DATE_FORMAT(pr.paymentDate, '%Y-%m-%d') AS paymentDate,
-             pr.status, pr.description, pr.receiptNumber, pr.paymentMethod,
+            pr.status, pr.semester, pr.description, pr.receiptNumber, pr.paymentMethod,
              DATE_FORMAT(pr.archivedAt, '%Y-%m-%d') AS archivedAt, 'archived' AS source,
              t.id AS tenantPk, t.firstName, t.lastName, t.tenantNumber
       FROM PaymentRecords pr LEFT JOIN Tenants t ON pr.tenantId = t.id
@@ -143,7 +144,7 @@ router.get("/records", async (req, res) => {
              DATE_FORMAT(p.dueDate, '%Y-%m') AS billingMonth,
              DATE_FORMAT(p.dueDate, '%Y-%m-%d') AS dueDate,
              DATE_FORMAT(p.paymentDate, '%Y-%m-%d') AS paymentDate,
-             p.status, p.description, p.receiptNumber, p.paymentMethod,
+            p.status, p.semester, p.description, p.receiptNumber, p.paymentMethod,
              NULL AS archivedAt, 'current' AS source,
              t.id AS tenantPk, t.firstName, t.lastName, t.tenantNumber
       FROM Payments p LEFT JOIN Tenants t ON p.tenantId = t.id
@@ -172,6 +173,7 @@ router.get("/records", async (req, res) => {
       dueDate: r.dueDate,
       paymentDate: r.paymentDate,
       status: r.status,
+      semester: r.semester,
       description: r.description,
       receiptNumber: r.receiptNumber,
       paymentMethod: r.paymentMethod,
@@ -192,7 +194,7 @@ router.get("/records", async (req, res) => {
 // ---------------- Mark a Payment Record as Paid ---------------- //
 router.put("/records/:id/record", async (req, res) => {
   try {
-    const { amountPaid, source } = req.body;
+    const { amountPaid, source, receiptNumber } = req.body;
     if (!amountPaid || parseFloat(amountPaid) <= 0) return res.status(400).json({ message: 'Amount paid must be positive' });
 
     // source='current' means the record lives in Payments (active cycle); 'archived' → PaymentRecords
@@ -207,12 +209,35 @@ router.put("/records/:id/record", async (req, res) => {
     const totalAmount = parseFloat(payment.amount);
     const finalAmountPaid = newAmountPaid >= totalAmount ? totalAmount : newAmountPaid;
     const newStatus = newAmountPaid >= totalAmount ? 'paid' : 'partial';
-    const receiptNumber = payment.receiptNumber || `RCP-${Date.now()}-${isCurrent ? 'P' : 'PR'}${payment.id}`;
+    const typedReceiptNumber = typeof receiptNumber === 'string' ? receiptNumber.trim() : '';
+    const finalReceiptNumber = typedReceiptNumber || payment.receiptNumber || `RCP-${Date.now()}-${isCurrent ? 'P' : 'PR'}${payment.id}`;
+
+    if (typedReceiptNumber && typedReceiptNumber !== payment.receiptNumber) {
+      const [duplicate] = await pool.execute(
+        `SELECT id FROM ${table} WHERE receiptNumber = ? AND id <> ? LIMIT 1`,
+        [typedReceiptNumber, req.params.id]
+      );
+      if (duplicate.length > 0) {
+        return res.status(400).json({ message: 'Receipt number already exists in this payment table' });
+      }
+    }
 
     await pool.execute(
       `UPDATE ${table} SET amountPaid = ?, status = ?, paymentDate = CURDATE(), recordedBy = ?, receiptNumber = ?, updatedAt = NOW() WHERE id = ?`,
-      [finalAmountPaid, newStatus, req.user.id, receiptNumber, req.params.id]
+      [finalAmountPaid, newStatus, req.user.id, finalReceiptNumber, req.params.id]
     );
+
+    await logActivity({
+      category: 'payment',
+      entityType: 'payment',
+      entityId: Number(req.params.id),
+      actionType: 'payment_recorded',
+      title: `Payment recorded (${isCurrent ? 'current' : 'archived'} record)`,
+      details: `Amount paid: ${amountPaid}. New status: ${newStatus}.`,
+      paymentId: Number(req.params.id),
+      performedBy: req.user.id,
+    });
+
     const [updated] = await pool.execute(`SELECT * FROM ${table} WHERE id = ?`, [req.params.id]);
     res.json(updated[0]);
   } catch (error) {
@@ -226,7 +251,7 @@ router.put("/records/:id/record", async (req, res) => {
 // then creates fresh unpaid records for every active tenant.
 router.post("/create-batch", async (req, res) => {
   try {
-    const { year, month } = req.body;
+    const { year, month, defaultAmount, semester } = req.body;
     if (!year || !month) return res.status(400).json({ message: 'year and month are required' });
 
     const y = parseInt(year);
@@ -234,6 +259,17 @@ router.post("/create-batch", async (req, res) => {
     const lastDay = new Date(y, m, 0).getDate();
     const dueDate = `${y}-${String(m).padStart(2, '0')}-${lastDay}`;
     const billingMonth = `${y}-${String(m).padStart(2, '0')}`;
+    const parsedDefaultAmount = defaultAmount !== undefined && defaultAmount !== null && defaultAmount !== ''
+      ? parseFloat(defaultAmount)
+      : null;
+
+    if (parsedDefaultAmount !== null && Number.isNaN(parsedDefaultAmount)) {
+      return res.status(400).json({ message: 'Default room payment must be a valid number' });
+    }
+
+    if (parsedDefaultAmount !== null && parsedDefaultAmount <= 0) {
+      return res.status(400).json({ message: 'Default room payment must be greater than 0' });
+    }
 
     // 1. Snapshot current Payments so we know each tenant's amount
     const [currentPayments] = await pool.execute('SELECT * FROM Payments');
@@ -272,18 +308,33 @@ router.post("/create-batch", async (req, res) => {
           'SELECT amount FROM PaymentRecords WHERE tenantId = ? ORDER BY archivedAt DESC LIMIT 1',
           [tenant.id]
         );
-        if (!lastRecord.length) continue; // No payment history at all
-        amount = lastRecord[0].amount;
+        if (lastRecord.length) {
+          amount = lastRecord[0].amount;
+        } else if (parsedDefaultAmount !== null) {
+          amount = parsedDefaultAmount;
+        } else {
+          continue; // No payment history and no default amount provided
+        }
       }
       const [result] = await pool.execute(
         `INSERT INTO Payments (tenantId, amount, dueDate, semester, description, paymentMethod, recordedBy, createdAt, updatedAt)
-         VALUES (?, ?, ?, '', 'Monthly Dormitory Fee', 'cash', ?, NOW(), NOW())`,
-        [tenant.id, amount, dueDate, req.user.id]
+         VALUES (?, ?, ?, ?, 'Monthly Dormitory Fee', 'cash', ?, NOW(), NOW())`,
+        [tenant.id, amount, dueDate, semester || '', req.user.id]
       );
       const receiptNumber = `RCP-${Date.now()}-${result.insertId}`;
       await pool.execute('UPDATE Payments SET receiptNumber = ? WHERE id = ?', [receiptNumber, result.insertId]);
       created++;
     }
+
+    await logActivity({
+      category: 'payment',
+      entityType: 'payment',
+      entityId: null,
+      actionType: 'payment_batch_created',
+      title: `Billing batch created for ${billingMonth}`,
+      details: `${created} payment record(s) generated.`,
+      performedBy: req.user.id,
+    });
 
     res.json({ created, month: billingMonth });
   } catch (error) {
@@ -319,6 +370,18 @@ router.post("/", async (req, res) => {
     const receiptNumber = `RCP-${Date.now()}-${result.insertId}`;
     await pool.execute("UPDATE Payments SET receiptNumber = ? WHERE id = ?", [receiptNumber, result.insertId]);
 
+    await logActivity({
+      category: 'payment',
+      entityType: 'payment',
+      entityId: result.insertId,
+      actionType: 'payment_created',
+      title: `Payment created for tenant ${tenantId}`,
+      details: `Amount: ${parseFloat(amount)} | Due date: ${dueDate}`,
+      tenantId: Number(tenantId),
+      paymentId: result.insertId,
+      performedBy: req.user.id,
+    });
+
     const [newPayment] = await pool.execute("SELECT * FROM Payments WHERE id = ?", [result.insertId]);
     res.status(201).json(newPayment[0]);
   } catch (error) {
@@ -336,7 +399,7 @@ router.put("/:id/record", async (req, res) => {
     }
 
     const payment = existing[0];
-    const { amountPaid } = req.body;
+    const { amountPaid, receiptNumber } = req.body;
 
     if (!amountPaid || parseFloat(amountPaid) <= 0) {
       return res.status(400).json({ message: 'Amount paid must be positive' });
@@ -354,17 +417,98 @@ router.put("/:id/record", async (req, res) => {
       finalAmountPaid = newAmountPaid;
     }
 
-    const receiptNumber = payment.receiptNumber || `RCP-${Date.now()}-${payment.id}`;
+    const typedReceiptNumber = typeof receiptNumber === 'string' ? receiptNumber.trim() : '';
+    const finalReceiptNumber = typedReceiptNumber || payment.receiptNumber || `RCP-${Date.now()}-${payment.id}`;
+
+    if (typedReceiptNumber && typedReceiptNumber !== payment.receiptNumber) {
+      const [duplicate] = await pool.execute(
+        'SELECT id FROM Payments WHERE receiptNumber = ? AND id <> ? LIMIT 1',
+        [typedReceiptNumber, req.params.id]
+      );
+      if (duplicate.length > 0) {
+        return res.status(400).json({ message: 'Receipt number already exists' });
+      }
+    }
 
     await pool.execute(
       `UPDATE Payments SET amountPaid = ?, status = ?, paymentDate = CURDATE(), recordedBy = ?, receiptNumber = ?, updatedAt = NOW() WHERE id = ?`,
-      [finalAmountPaid, newStatus, req.user.id, receiptNumber, req.params.id]
+      [finalAmountPaid, newStatus, req.user.id, finalReceiptNumber, req.params.id]
     );
+
+    await logActivity({
+      category: 'payment',
+      entityType: 'payment',
+      entityId: payment.id,
+      actionType: 'payment_recorded',
+      title: `Payment recorded for tenant ${payment.tenantId}`,
+      details: `Amount paid: ${amountPaid}. New status: ${newStatus}.`,
+      tenantId: payment.tenantId,
+      paymentId: payment.id,
+      performedBy: req.user.id,
+    });
 
     const [updated] = await pool.execute("SELECT * FROM Payments WHERE id = ?", [req.params.id]);
     res.json(updated[0]);
   } catch (error) {
     console.error("Record payment error:", error);
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+});
+
+// ---------------- Update Payment Record (current or archived) ---------------- //
+router.put("/records/:id", async (req, res) => {
+  try {
+    const { source, amount, semester } = req.body;
+    const isCurrent = source === 'current';
+    const table = isCurrent ? 'Payments' : 'PaymentRecords';
+
+    const [existing] = await pool.execute(`SELECT * FROM ${table} WHERE id = ?`, [req.params.id]);
+    if (!existing || existing.length === 0) {
+      return res.status(404).json({ message: 'Payment record not found' });
+    }
+
+    const payment = existing[0];
+    const nextAmount = amount !== undefined ? parseFloat(amount) : parseFloat(payment.amount);
+    if (Number.isNaN(nextAmount) || nextAmount <= 0) {
+      return res.status(400).json({ message: 'Amount must be positive' });
+    }
+    if (nextAmount < parseFloat(payment.amountPaid)) {
+      return res.status(400).json({ message: 'Amount cannot be less than already paid amount' });
+    }
+
+    const nextSemester = semester !== undefined
+      ? (semester || '')
+      : (payment.semester || '');
+
+    let nextStatus = payment.status;
+    if (parseFloat(payment.amountPaid) <= 0) {
+      nextStatus = 'unpaid';
+    } else if (parseFloat(payment.amountPaid) >= nextAmount) {
+      nextStatus = 'paid';
+    } else {
+      nextStatus = 'partial';
+    }
+
+    await pool.execute(
+      `UPDATE ${table} SET amount = ?, semester = ?, status = ?, updatedAt = NOW() WHERE id = ?`,
+      [nextAmount, nextSemester, nextStatus, req.params.id]
+    );
+
+    await logActivity({
+      category: 'payment',
+      entityType: 'payment',
+      entityId: Number(req.params.id),
+      actionType: 'payment_updated',
+      title: `Payment record updated (${isCurrent ? 'current' : 'archived'})`,
+      details: `Amount: ${nextAmount} | Status: ${nextStatus}.`,
+      paymentId: Number(req.params.id),
+      performedBy: req.user.id,
+    });
+
+    const [updated] = await pool.execute(`SELECT * FROM ${table} WHERE id = ?`, [req.params.id]);
+    res.json(updated[0]);
+  } catch (error) {
+    console.error("Update payment record error:", error);
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 });
@@ -379,18 +523,47 @@ router.put("/:id", async (req, res) => {
 
     const payment = existing[0];
     const { amount, dueDate, semester, description, status } = req.body;
+    const nextAmount = amount !== undefined ? parseFloat(amount) : parseFloat(payment.amount);
+
+    if (Number.isNaN(nextAmount) || nextAmount <= 0) {
+      return res.status(400).json({ message: 'Amount must be positive' });
+    }
+
+    if (nextAmount < parseFloat(payment.amountPaid)) {
+      return res.status(400).json({ message: 'Amount cannot be less than already paid amount' });
+    }
+
+    const nextStatus = status ?? (
+      parseFloat(payment.amountPaid) <= 0
+        ? 'unpaid'
+        : parseFloat(payment.amountPaid) >= nextAmount
+          ? 'paid'
+          : 'partial'
+    );
 
     await pool.execute(
       `UPDATE Payments SET amount = ?, dueDate = ?, semester = ?, description = ?, status = ?, updatedAt = NOW() WHERE id = ?`,
       [
-        amount ?? payment.amount,
+        nextAmount,
         dueDate ?? payment.dueDate,
         semester ?? payment.semester,
         description ?? payment.description,
-        status ?? payment.status,
+        nextStatus,
         req.params.id,
       ]
     );
+
+    await logActivity({
+      category: 'payment',
+      entityType: 'payment',
+      entityId: Number(req.params.id),
+      actionType: 'payment_updated',
+      title: `Payment updated for tenant ${payment.tenantId}`,
+      details: `Amount: ${nextAmount} | Status: ${nextStatus}.`,
+      tenantId: payment.tenantId,
+      paymentId: Number(req.params.id),
+      performedBy: req.user.id,
+    });
 
     const [updated] = await pool.execute("SELECT * FROM Payments WHERE id = ?", [req.params.id]);
     res.json(updated[0]);

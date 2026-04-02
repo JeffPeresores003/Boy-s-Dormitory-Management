@@ -5,7 +5,7 @@ import ConfirmModal from './ConfirmModal';
 import LogoutLoadingModal from '../shared/LogoutLoadingModal';
 import {
   HiOutlineHome, HiOutlineUserGroup, HiOutlineOfficeBuilding, HiOutlineCash,
-  HiOutlineClipboardList, HiOutlineChartBar, HiOutlineX, HiOutlineViewList, HiOutlineLogout,
+  HiOutlineClipboardList, HiOutlineChartBar, HiOutlineX, HiOutlineViewList, HiOutlineLogout, HiOutlineClock, HiOutlineAcademicCap,
 } from 'react-icons/hi';
 
 const adminLinks = [
@@ -14,7 +14,9 @@ const adminLinks = [
   { to: '/admin/rooms', label: 'Rooms', icon: HiOutlineOfficeBuilding },
   { to: '/admin/payments', label: 'Payments', icon: HiOutlineCash },
   { to: '/admin/payment-records', label: 'Payment Records', icon: HiOutlineViewList },
+  { to: '/admin/tenant-remarks', label: 'Tenant Remarks', icon: HiOutlineAcademicCap },
   { to: '/admin/visitors', label: 'Visitors', icon: HiOutlineClipboardList },
+  { to: '/admin/history', label: 'History', icon: HiOutlineClock },
   { to: '/admin/reports', label: 'Reports', icon: HiOutlineChartBar },
 ];
 

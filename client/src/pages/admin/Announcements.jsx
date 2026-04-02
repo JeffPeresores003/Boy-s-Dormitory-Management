@@ -14,6 +14,7 @@ const Announcements = () => {
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [search, setSearch] = useState('');
+  const [categoryFilter, setCategoryFilter] = useState('');
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState(null);
   const [confirmModal, setConfirmModal] = useState({ open: false, id: null });
@@ -22,12 +23,12 @@ const Announcements = () => {
   const fetchAnnouncements = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await api.get('/announcements', { params: { page, limit: 10, search } });
+      const res = await api.get('/announcements', { params: { page, limit: 10, search, category: categoryFilter } });
       setAnnouncements(res.data.announcements);
       setTotalPages(res.data.totalPages);
     } catch { toast.error('Unable to load announcements.'); }
     finally { setLoading(false); }
-  }, [page, search]);
+  }, [page, search, categoryFilter]);
 
   useEffect(() => { fetchAnnouncements(); }, [fetchAnnouncements]);
 
@@ -54,13 +55,13 @@ const Announcements = () => {
     } catch (err) { toast.error(err.response?.data?.message || 'Unable to save the announcement.'); }
   };
 
-  const handleDelete = async () => {
+  const handleArchive = async () => {
     try {
-      await api.delete(`/announcements/${confirmModal.id}`);
-      toast.success('Announcement deleted successfully.');
+      await api.put(`/announcements/${confirmModal.id}`, { category: 'archived' });
+      toast.success('Announcement archived successfully.');
       setConfirmModal({ open: false, id: null });
       fetchAnnouncements();
-    } catch { toast.error('Unable to delete the announcement.'); }
+    } catch { toast.error('Unable to archive the announcement.'); }
   };
 
   return (
@@ -75,8 +76,22 @@ const Announcements = () => {
         }
       />
 
-      <div className="mb-4">
-        <SearchBar value={search} onChange={(v) => { setSearch(v); setPage(1); }} placeholder="Search announcements..." />
+      <div className="flex flex-col sm:flex-row gap-3 mb-4">
+        <div className="flex-1">
+          <SearchBar value={search} onChange={(v) => { setSearch(v); setPage(1); }} placeholder="Search announcements..." />
+        </div>
+        <select
+          value={categoryFilter}
+          onChange={(e) => { setCategoryFilter(e.target.value); setPage(1); }}
+          className="px-3 py-2 border border-slate-700 rounded-lg text-sm bg-slate-900/70 text-slate-100"
+        >
+          <option value="">All Categories</option>
+          <option value="general">General</option>
+          <option value="important">Important</option>
+          <option value="event">Event</option>
+          <option value="maintenance">Maintenance</option>
+          <option value="archived">Archived</option>
+        </select>
       </div>
 
       {/* Form Modal */}
@@ -98,6 +113,7 @@ const Announcements = () => {
                   <option value="important">Important</option>
                   <option value="event">Event</option>
                   <option value="maintenance">Maintenance</option>
+                  <option value="archived">Archived</option>
                 </select>
               </div>
               <div>
@@ -129,6 +145,7 @@ const Announcements = () => {
                         a.category === 'important' ? 'bg-red-100 text-red-700' :
                         a.category === 'event' ? 'bg-purple-100 text-purple-700' :
                         a.category === 'maintenance' ? 'bg-orange-100 text-orange-700' :
+                        a.category === 'archived' ? 'bg-gray-100 text-gray-700' :
                         'bg-gray-100 text-gray-700'
                       }`}>{a.category || 'general'}</span>
                     </div>
@@ -137,7 +154,9 @@ const Announcements = () => {
                   </div>
                   <div className="flex gap-2 ml-4 shrink-0">
                     <button onClick={() => openEdit(a)} className="px-2 py-1 text-xs font-medium text-blue-200 bg-blue-500/15 rounded border border-blue-400/30 hover:bg-blue-500/25">Edit</button>
-                    <button onClick={() => setConfirmModal({ open: true, id: a.id })} className="text-red-600 hover:underline text-xs">Delete</button>
+                    {a.category !== 'archived' && (
+                      <button onClick={() => setConfirmModal({ open: true, id: a.id })} className="text-yellow-600 hover:underline text-xs">Archive</button>
+                    )}
                   </div>
                 </div>
               </div>
@@ -150,8 +169,8 @@ const Announcements = () => {
       </div>
 
       <div className="mt-4"><Pagination page={page} totalPages={totalPages} onPageChange={setPage} /></div>
-      <ConfirmModal open={confirmModal.open} title="Delete Announcement" message="Are you sure you want to delete this announcement?"
-        onConfirm={handleDelete} onCancel={() => setConfirmModal({ open: false, id: null })} />
+      <ConfirmModal open={confirmModal.open} title="Archive Announcement" message="Are you sure you want to archive this announcement?"
+        onConfirm={handleArchive} onCancel={() => setConfirmModal({ open: false, id: null })} />
     </div>
   );
 };

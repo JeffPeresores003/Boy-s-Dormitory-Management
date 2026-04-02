@@ -33,6 +33,18 @@ const PaymentRecords = () => {
   const [statusFilter, setStatusFilter] = useState('');
   const [monthFilter, setMonthFilter] = useState('');
   const [showBilling, setShowBilling] = useState(null);
+  const [recordModal, setRecordModal] = useState({
+    open: false,
+    payment: null,
+    amountPaid: '',
+    receiptNumber: '',
+  });
+  const [editModal, setEditModal] = useState({
+    open: false,
+    payment: null,
+    amount: '',
+    semester: '',
+  });
  
 
   const fetchRecords = useCallback(async () => {
@@ -52,14 +64,86 @@ const PaymentRecords = () => {
     fetchRecords().finally(() => setLoading(false));
   }, [fetchRecords]);
 
-  const handleMarkPaid = async (payment) => {
+  const handleOpenRecordModal = (payment) => {
     const remaining = parseFloat(payment.amount) - parseFloat(payment.amountPaid);
     if (remaining <= 0) { toast.error('This payment has already been settled in full.'); return; }
+
+    setRecordModal({
+      open: true,
+      payment,
+      amountPaid: remaining.toFixed(2),
+      receiptNumber: payment.receiptNumber || '',
+    });
+  };
+
+  const handleSubmitRecordPayment = async () => {
+    if (!recordModal.payment) return;
+    const typedAmount = parseFloat(recordModal.amountPaid);
+    if (!typedAmount || typedAmount <= 0) {
+      toast.error('Please enter a valid payment amount.');
+      return;
+    }
+
+    const remaining = parseFloat(recordModal.payment.amount) - parseFloat(recordModal.payment.amountPaid);
+    if (typedAmount > remaining) {
+      toast.error('Amount paid cannot be greater than the remaining balance.');
+      return;
+    }
+
     try {
-      await api.put(`/payments/records/${payment.id}/record`, { amountPaid: remaining, source: payment.source });
+      await api.put(`/payments/records/${recordModal.payment.id}/record`, {
+        amountPaid: typedAmount,
+        source: recordModal.payment.source,
+        receiptNumber: recordModal.receiptNumber,
+      });
       toast.success('Payment recorded successfully.');
+      setRecordModal({ open: false, payment: null, amountPaid: '', receiptNumber: '' });
       fetchRecords();
     } catch (err) { toast.error(err.response?.data?.message || 'Unable to record the payment.'); }
+  };
+
+  const handleOpenEditModal = (payment) => {
+    setEditModal({
+      open: true,
+      payment,
+      amount: String(payment.amount ?? ''),
+      semester: payment.semester || '',
+    });
+  };
+
+  const handleSubmitEditPayment = async () => {
+    if (!editModal.payment) return;
+    const typedAmount = parseFloat(editModal.amount);
+    if (!typedAmount || typedAmount <= 0) {
+      toast.error('Please enter a valid total amount.');
+      return;
+    }
+
+    if (typedAmount < parseFloat(editModal.payment.amountPaid)) {
+      toast.error('Total amount cannot be less than already paid amount.');
+      return;
+    }
+
+    try {
+      if (editModal.payment.source === 'current') {
+        await api.put(`/payments/${editModal.payment.id}`, {
+          amount: typedAmount,
+          semester: editModal.semester,
+        });
+      } else {
+        await api.put(`/payments/records/${editModal.payment.id}`, {
+          source: editModal.payment.source,
+          amount: typedAmount,
+          semester: editModal.semester,
+        });
+      }
+
+      toast.success('Payment details updated successfully.');
+      setEditModal({ open: false, payment: null, amount: '', semester: '' });
+      fetchRecords();
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Unable to update payment details.');
+    }
   };
 
   const handlePrintBilling = (p) => {
@@ -86,7 +170,7 @@ const PaymentRecords = () => {
       </div>
       <hr class='divider' />
       <div class='row'><span class='label'>Tenant</span><span class='value'>${tenantName}</span></div>
-      <div class='row'><span class='label'>Description</span><span class='value'>${p.description || 'Monthly Dormitory Fee'}</span></div>
+      <div class='row'><span class='label'>Semester</span><span class='value'>${p.semester || '—'}</span></div>
       <div class='row'><span class='label'>Due Date</span><span class='value'>${p.dueDate || '—'}</span></div>
       <div class='row'><span class='label'>Total Amount</span><span class='value'>₱${parseFloat(p.amount).toLocaleString()}</span></div>
       <div class='row'><span class='label'>Receipt No.</span><span class='value'>${p.receiptNumber || '—'}</span></div>
@@ -139,8 +223,8 @@ const PaymentRecords = () => {
                 <span>{fmtMonth(showBilling.dueDate)}</span>
               </div>
               <div className="flex justify-between py-2 border-b border-gray-100">
-                <span className="text-gray-500">Description</span>
-                <span>{showBilling.description || '—'}</span>
+                <span className="text-gray-500">Semester</span>
+                <span>{showBilling.semester || '—'}</span>
               </div>
               <div className="flex justify-between py-2 border-b border-gray-100">
                 <span className="text-gray-500">Due Date</span>
@@ -175,6 +259,100 @@ const PaymentRecords = () => {
         </div>
       )}
 
+      {/* Record Payment Modal */}
+      {recordModal.open && recordModal.payment && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+          <div className="bg-slate-900/95 border border-slate-700 rounded-xl shadow-xl max-w-md w-full mx-4 p-6 text-slate-100">
+            <h2 className="text-lg font-semibold mb-1">Record Payment</h2>
+            <p className="text-xs text-slate-400 mb-4">
+              {recordModal.payment.tenant ? `${recordModal.payment.tenant.firstName} ${recordModal.payment.tenant.lastName}` : 'Tenant'}
+            </p>
+            <div className="space-y-3">
+              <div className="rounded-lg border border-slate-700 bg-slate-900/60 px-3 py-2 text-sm">
+                <div className="flex justify-between text-slate-300">
+                  <span>Total Amount</span>
+                  <span>₱{parseFloat(recordModal.payment.amount).toLocaleString()}</span>
+                </div>
+                <div className="flex justify-between text-slate-300 mt-1">
+                  <span>Already Paid</span>
+                  <span>₱{parseFloat(recordModal.payment.amountPaid).toLocaleString()}</span>
+                </div>
+                <div className="flex justify-between text-amber-300 mt-1 font-medium">
+                  <span>Remaining Balance</span>
+                  <span>₱{(parseFloat(recordModal.payment.amount) - parseFloat(recordModal.payment.amountPaid)).toLocaleString()}</span>
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Payment Amount</label>
+                <input
+                  type="number"
+                  min="0.01"
+                  step="0.01"
+                  value={recordModal.amountPaid}
+                  onChange={(e) => setRecordModal((prev) => ({ ...prev, amountPaid: e.target.value }))}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Receipt Number</label>
+                <input
+                  value={recordModal.receiptNumber}
+                  onChange={(e) => setRecordModal((prev) => ({ ...prev, receiptNumber: e.target.value }))}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                  placeholder="Type receipt number"
+                />
+              </div>
+            </div>
+            <div className="flex justify-end gap-3 mt-5">
+              <ActionButton variant="neutral" onClick={() => setRecordModal({ open: false, payment: null, amountPaid: '', receiptNumber: '' })}>
+                Cancel
+              </ActionButton>
+              <ActionButton onClick={handleSubmitRecordPayment}>Save Payment</ActionButton>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Payment Modal */}
+      {editModal.open && editModal.payment && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+          <div className="bg-slate-900/95 border border-slate-700 rounded-xl shadow-xl max-w-md w-full mx-4 p-6 text-slate-100">
+            <h2 className="text-lg font-semibold mb-1">Edit Payment Details</h2>
+            <p className="text-xs text-slate-400 mb-4">
+              {editModal.payment.tenant ? `${editModal.payment.tenant.firstName} ${editModal.payment.tenant.lastName}` : 'Tenant'}
+            </p>
+            <div className="space-y-3">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Total Room Payment</label>
+                <input
+                  type="number"
+                  min="0.01"
+                  step="0.01"
+                  value={editModal.amount}
+                  onChange={(e) => setEditModal((prev) => ({ ...prev, amount: e.target.value }))}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Semester</label>
+                <input
+                  value={editModal.semester}
+                  onChange={(e) => setEditModal((prev) => ({ ...prev, semester: e.target.value }))}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                  placeholder="e.g. 1st Semester 2026"
+                />
+              </div>
+            </div>
+            <div className="flex justify-end gap-3 mt-5">
+              <ActionButton variant="neutral" onClick={() => setEditModal({ open: false, payment: null, amount: '', semester: '' })}>
+                Cancel
+              </ActionButton>
+              <ActionButton onClick={handleSubmitEditPayment}>Save Changes</ActionButton>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-x-auto">
         {loading ? (
           <SkeletonList count={5} />
@@ -183,7 +361,7 @@ const PaymentRecords = () => {
             <thead className="bg-gray-50 border-b border-gray-200">
               <tr>
                 <th className="text-left px-4 py-3 font-medium text-gray-600">Tenant</th>
-                <th className="text-left px-4 py-3 font-medium text-gray-600">Description</th>
+                <th className="text-left px-4 py-3 font-medium text-gray-600">Semester</th>
                 <th className="text-left px-4 py-3 font-medium text-gray-600">Amount</th>
                 <th className="text-left px-4 py-3 font-medium text-gray-600">Status</th>
                 <th className="text-left px-4 py-3 font-medium text-gray-600">Due Date</th>
@@ -195,7 +373,7 @@ const PaymentRecords = () => {
               {records.map(p => (
                 <tr key={p.id} className="hover:bg-gray-50">
                   <td className="px-4 py-3 font-medium">{p.tenant ? `${p.tenant.firstName} ${p.tenant.lastName}` : '—'}</td>
-                  <td className="px-4 py-3">{p.description || 'Monthly Dormitory Fee'}</td>
+                  <td className="px-4 py-3">{p.semester || '—'}</td>
                   <td className="px-4 py-3">₱{parseFloat(p.amount).toLocaleString()}</td>
                   <td className="px-4 py-3">
                     <span className={`px-2 py-1 rounded-full text-xs font-medium capitalize ${statusColors[p.status]}`}>{p.status}</span>
@@ -204,9 +382,10 @@ const PaymentRecords = () => {
                   <td className="px-4 py-3">{p.receiptNumber || '—'}</td>
                   <td className="px-4 py-3">
                     <div className="flex gap-2">
+                      <button onClick={() => handleOpenEditModal(p)} className="px-2 py-1 text-xs font-medium text-violet-700 bg-violet-100 rounded border border-violet-300 hover:bg-violet-200">Edit</button>
                       <button onClick={() => setShowBilling(p)} className="px-2 py-1 text-xs font-medium text-blue-200 bg-blue-500/15 rounded border border-blue-400/30 hover:bg-blue-500/25">View Statement</button>
                       {p.status !== 'paid' && (
-                        <button onClick={() => handleMarkPaid(p)} className="px-2 py-1 text-xs font-medium text-emerald-200 bg-emerald-500/15 rounded border border-emerald-400/30 hover:bg-emerald-500/25">Record Payment</button>
+                        <button onClick={() => handleOpenRecordModal(p)} className="px-2 py-1 text-xs font-medium text-emerald-200 bg-emerald-500/15 rounded border border-emerald-400/30 hover:bg-emerald-500/25">Record Payment</button>
                       )}
                     </div>
                   </td>

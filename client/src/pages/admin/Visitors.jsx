@@ -65,13 +65,13 @@ const Visitors = () => {
     } catch (err) { toast.error(err.response?.data?.message || 'Unable to complete checkout.'); }
   };
 
-  const handleDelete = async () => {
+  const handleArchive = async () => {
     try {
-      await api.delete(`/visitors/${confirmModal.id}`);
-      toast.success('Visitor record deleted successfully.');
+      await api.put(`/visitors/${confirmModal.id}/checkout`);
+      toast.success('Visitor record archived successfully.');
       setConfirmModal({ open: false, id: null });
       fetchVisitors();
-    } catch { toast.error('Unable to delete the visitor record.'); }
+    } catch (err) { toast.error(err.response?.data?.message || 'Unable to archive the visitor record.'); }
   };
 
   const formatTime = (dt) => dt ? new Date(dt).toLocaleString() : '—';
@@ -152,16 +152,18 @@ const Visitors = () => {
                       {!v.timeOut && (
                         <button onClick={() => handleCheckout(v.id)} className="px-2 py-1 text-xs font-medium text-emerald-200 bg-emerald-500/15 rounded border border-emerald-400/30 hover:bg-emerald-500/25">Checkout</button>
                       )}
-                      <button
-                        onClick={() => setConfirmModal({ open: true, id: v.id })}
-                        className={`px-2 py-1 text-xs font-medium rounded border transition-colors ${
-                          theme === 'dark'
-                            ? 'text-red-200 bg-red-500/15 border-red-400/30 hover:bg-red-500/25'
-                            : 'text-red-700 bg-red-100 border-red-300 hover:bg-red-200'
-                        }`}
-                      >
-                        Delete
-                      </button>
+                      {!v.timeOut && (
+                        <button
+                          onClick={() => setConfirmModal({ open: true, id: v.id })}
+                          className={`px-2 py-1 text-xs font-medium rounded border transition-colors ${
+                            theme === 'dark'
+                              ? 'text-yellow-200 bg-yellow-500/15 border-yellow-400/30 hover:bg-yellow-500/25'
+                              : 'text-yellow-800 bg-yellow-100 border-yellow-300 hover:bg-yellow-200'
+                          }`}
+                        >
+                          Archive
+                        </button>
+                      )}
                     </div>
                   </td>
                 </tr>
@@ -175,8 +177,8 @@ const Visitors = () => {
       </div>
 
       <Pagination page={page} totalPages={totalPages} onPageChange={setPage} />
-      <ConfirmModal open={confirmModal.open} title="Delete Visitor Record" message="Are you sure you want to delete this visitor record?"
-        onConfirm={handleDelete} onCancel={() => setConfirmModal({ open: false, id: null })} />
+      <ConfirmModal open={confirmModal.open} title="Archive Visitor Record" message="Are you sure you want to archive this visitor record?"
+        onConfirm={handleArchive} onCancel={() => setConfirmModal({ open: false, id: null })} />
     </div>
   );
 };
