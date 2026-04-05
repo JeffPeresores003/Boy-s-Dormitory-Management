@@ -37,11 +37,11 @@ const Sidebar = ({ open, onClose, showConfirm, setShowConfirm, showLoading, setS
       )}
 
       <aside className={`
-        fixed inset-y-0 left-0 z-50 w-72 p-4 transform transition-transform duration-200 ease-in-out flex flex-col
-        md:relative md:translate-x-0 md:pl-5 md:pr-3 md:py-5
+        fixed inset-y-0 left-0 z-50 w-[85vw] max-w-72 p-4 transform transition-transform duration-200 ease-in-out flex flex-col
+        md:relative md:translate-x-0 md:pl-5 md:pr-3 md:py-5 md:w-72
         ${open ? 'translate-x-0' : '-translate-x-full'}
       `}>
-        <div className="flex flex-col h-full rounded-2xl border border-slate-700/55 bg-slate-900/70 backdrop-blur-xl shadow-[0_18px_40px_rgba(0,0,0,0.35)]">
+        <div className="flex min-h-0 flex-col h-full rounded-2xl border border-slate-700/55 bg-slate-900/70 backdrop-blur-xl shadow-[0_18px_40px_rgba(0,0,0,0.35)] overflow-hidden">
           <div className="flex items-center justify-between h-16 px-4 border-b border-slate-700/40">
             <div className="flex items-center gap-3">
               <img src="/Bisu.png" alt="BISU" className="w-9 h-9 rounded-xl object-cover ring-2 ring-blue-400/70" />
@@ -55,7 +55,7 @@ const Sidebar = ({ open, onClose, showConfirm, setShowConfirm, showLoading, setS
             </button>
           </div>
 
-          <nav className="mt-4 px-3 space-y-1.5 flex-1">
+          <nav className="mt-4 flex flex-1 min-h-0 flex-col space-y-1.5 overflow-y-auto px-3 pb-4">
             {links.map(({ to, label, icon: Icon, end }) => (
               <NavLink
                 key={to}
@@ -76,20 +76,23 @@ const Sidebar = ({ open, onClose, showConfirm, setShowConfirm, showLoading, setS
                 {label}
               </NavLink>
             ))}
+
+            <div className="mt-auto pt-3 pb-1">
+              <button
+                onClick={handleLogoutClick}
+                className="group flex w-full items-center gap-3 rounded-xl px-3.5 py-2.5 text-sm font-medium text-slate-300 transition-all hover:border-red-300/25 hover:bg-red-500/15 hover:text-red-200 border border-transparent"
+              >
+                <span className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-slate-800/80 group-hover:bg-red-500/20">
+                  <HiOutlineLogout className="w-4.5 h-4.5" />
+                </span>
+                Logout
+              </button>
+            </div>
           </nav>
 
           {/* Removed Admin section from sidebar navigation bar as requested */}
 
-          <div className="px-3 pb-4">
-            <button
-              onClick={handleLogoutClick}
-              className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-slate-300 hover:bg-red-500/15 hover:text-red-300 border border-slate-700/60 transition-colors"
-            >
-              <HiOutlineLogout className="w-5 h-5" />
-              Logout
-            </button>
-            {/* Modals are now rendered in Layout for global centering */}
-          </div>
+          {/* Modals are now rendered in Layout for global centering */}
         </div>
       </aside>
     </>
