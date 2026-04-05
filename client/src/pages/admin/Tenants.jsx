@@ -5,7 +5,6 @@ import SearchBar from '../../components/SearchBar';
 import Pagination from '../../components/Pagination';
 import ConfirmModal from '../../components/ConfirmModal';
 import SkeletonList from '../../shared/SkeletonList';
-import AdminPageHeader from '../../components/AdminPageHeader';
 import ActionButton from '../../components/ActionButton';
 
 const Tenants = () => {
@@ -18,12 +17,17 @@ const Tenants = () => {
   const [typeFilter, setTypeFilter] = useState('');
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState(null);
-  const [confirmModal, setConfirmModal] = useState({ open: false, id: null });
-  const [deleteModal, setDeleteModal] = useState({ open: false, id: null, name: '' });
+  const [confirmModal, setConfirmModal] = useState({
+    open: false,
+    id: null,
+    action: 'archive',
+    title: 'Archive Tenant Record',
+    message: 'Are you sure you want to archive this tenant? This action will unassign the tenant from their current room.',
+  });
+  const [unarchiveModal, setUnarchiveModal] = useState({ open: false, id: null, roomId: '' });
   const [form, setForm] = useState({
     firstName: '', lastName: '', email: '',
-    contact: '', type: 'student', department: '', roomId: '', guardianName: '', guardianContact: '',
-    payAmount: '', payDescription: 'Monthly Dormitory Fee',
+    contact: '', type: 'student', department: '', roomId: '', guardianName: '', guardianContact: '', remarks: '', amount: '', duration: '1 sem',
   });
 
   const fetchTenants = useCallback(async () => {
@@ -53,7 +57,7 @@ const Tenants = () => {
   const availableRooms = rooms.filter(r => r.status === 'available');
 
   const resetForm = () => {
-    setForm({ firstName: '', lastName: '', email: '', contact: '', type: 'student', department: '', roomId: '', guardianName: '', guardianContact: '', payAmount: '', payDescription: 'Monthly Dormitory Fee' });
+    setForm({ firstName: '', lastName: '', email: '', contact: '', type: 'student', department: '', roomId: '', guardianName: '', guardianContact: '', remarks: '', amount: '', duration: '1 sem' });
     setEditingId(null);
     setShowForm(false);
   };
@@ -61,15 +65,11 @@ const Tenants = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
-      const { payAmount, payDescription, ...tenantData } = form;
       if (editingId) {
-        await api.put(`/tenants/${editingId}`, tenantData);
+        await api.put(`/tenants/${editingId}`, form);
         toast.success('Tenant record updated successfully.');
       } else {
-        await api.post('/tenants', {
-          ...tenantData,
-          payment: { amount: payAmount, description: payDescription },
-        });
+        await api.post('/tenants', form);
         toast.success('Tenant record created successfully.');
       }
       resetForm();
@@ -85,31 +85,80 @@ const Tenants = () => {
       email: tenant.email, contact: tenant.contact,
       type: tenant.type, department: tenant.department || '',
       roomId: tenant.roomId || '', guardianName: tenant.guardianName || '', guardianContact: tenant.guardianContact || '',
-      payAmount: '', payDueDate: '', payDescription: 'Monthly Dormitory Fee',
+      remarks: tenant.remarks || '', amount: tenant.amount ?? '', duration: tenant.duration || '1 sem',
     });
     setEditingId(tenant.id);
     setShowForm(true);
   };
 
-  const handleArchive = async () => {
+  const handleLeaveAction = async () => {
+    const endpointMap = {
+      archive: 'archive',
+      drop: 'drop',
+      graduated: 'graduated',
+    };
+
+    const successMap = {
+      archive: 'Tenant archived successfully.',
+      drop: 'Tenant marked as dropped successfully.',
+      graduated: 'Tenant marked as graduated successfully.',
+    };
+
     try {
-      await api.put(`/tenants/${confirmModal.id}/archive`);
-      toast.success('Tenant archived successfully.');
-      setConfirmModal({ open: false, id: null });
+      await api.put(`/tenants/${confirmModal.id}/${endpointMap[confirmModal.action]}`);
+      toast.success(successMap[confirmModal.action] || 'Tenant updated successfully.');
+      setConfirmModal({
+        open: false,
+        id: null,
+        action: 'archive',
+        title: 'Archive Tenant Record',
+        message: 'Are you sure you want to archive this tenant? This action will unassign the tenant from their current room.',
+      });
       fetchTenants();
+      fetchRooms();
     } catch {
-      toast.error('Unable to archive the tenant record.');
+      toast.error('Unable to process this tenant action.');
     }
   };
 
-  const handleDelete = async () => {
+  const openLeaveModal = (id, action) => {
+    const config = {
+      archive: {
+        title: 'Archive Tenant Record',
+        message: 'Archive this tenant and remove them from their assigned room?',
+      },
+      drop: {
+        title: 'Mark Tenant as Dropped',
+        message: 'Mark this tenant as dropped and remove them from their assigned room?',
+      },
+      graduated: {
+        title: 'Mark Tenant as Graduated',
+        message: 'Mark this tenant as graduated and remove them from their assigned room?',
+      },
+    };
+
+    setConfirmModal({
+      open: true,
+      id,
+      action,
+      title: config[action].title,
+      message: config[action].message,
+    });
+  };
+
+  const handleUnarchive = async () => {
+    if (!unarchiveModal.roomId) {
+      toast.error('Please select a room before unarchiving.');
+      return;
+    }
     try {
-      await api.delete(`/tenants/${deleteModal.id}`);
-      toast.success('Tenant record deleted successfully.');
-      setDeleteModal({ open: false, id: null, name: '' });
+      await api.put(`/tenants/${unarchiveModal.id}/unarchive`, { roomId: Number(unarchiveModal.roomId) });
+      toast.success('Tenant unarchived successfully.');
+      setUnarchiveModal({ open: false, id: null, roomId: '' });
       fetchTenants();
+      fetchRooms();
     } catch (err) {
-      toast.error(err.response?.data?.message || 'Unable to delete the tenant record.');
+      toast.error(err.response?.data?.message || 'Unable to unarchive the tenant record.');
     }
   };
 
@@ -188,6 +237,30 @@ const Tenants = () => {
                 <input value={form.department} onChange={(e) => setForm({...form, department: e.target.value})}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
               </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Amount *</label>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={form.amount}
+                  onChange={(e) => setForm({ ...form, amount: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Duration *</label>
+                <select
+                  value={form.duration}
+                  onChange={(e) => setForm({ ...form, duration: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                  required
+                >
+                  <option value="1 sem">1 sem</option>
+                  <option value="2 sem">2 sem</option>
+                </select>
+              </div>
               <div className="sm:col-span-2">
                 <label className="block text-sm font-medium text-gray-700 mb-1">Room *</label>
                 <select value={form.roomId} onChange={(e) => setForm({...form, roomId: e.target.value})}
@@ -211,29 +284,53 @@ const Tenants = () => {
                 <input value={form.guardianContact} onChange={(e) => setForm({...form, guardianContact: e.target.value})}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" placeholder="Optional" />
               </div>
-              {!editingId && (
-                <>
-                  <div className="sm:col-span-2 border-t border-gray-200 pt-4 mt-1">
-                    <h3 className="text-sm font-semibold text-gray-800 mb-1">Initial Payment Details</h3>
-                    <p className="text-xs text-gray-400">A billing record will be created automatically for this tenant.</p>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Amount (₱) *</label>
-                    <input type="number" min="0" step="0.01" value={form.payAmount} onChange={(e) => setForm({...form, payAmount: e.target.value})}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" required />
-                  </div>
-                  <div className="sm:col-span-2">
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
-                    <input value={form.payDescription} onChange={(e) => setForm({...form, payDescription: e.target.value})}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
-                  </div>
-                </>
+              {editingId && (
+                <div className="sm:col-span-2">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Remarks</label>
+                  <select
+                    value={form.remarks}
+                    onChange={(e) => setForm({ ...form, remarks: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                  >
+                    <option value="">None</option>
+                    <option value="drop">Drop</option>
+                    <option value="graduated">Graduated</option>
+                  </select>
+                </div>
               )}
               <div className="sm:col-span-2 flex justify-end gap-3 mt-2">
                 <button type="button" onClick={resetForm} className="px-4 py-2 text-sm text-slate-200 bg-slate-800 rounded-lg hover:bg-slate-700">Cancel</button>
                 <button type="submit" className="px-4 py-2 text-sm text-white bg-primary-600 rounded-lg hover:bg-primary-700">{editingId ? 'Save Changes' : 'Create Tenant'}</button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Unarchive Modal */}
+      {unarchiveModal.open && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+          <div className="bg-slate-900/95 border border-slate-700 rounded-xl shadow-xl max-w-md w-full mx-4 p-6 text-slate-100">
+            <h2 className="text-lg font-semibold mb-2">Unarchive Tenant</h2>
+            <p className="text-sm text-slate-400 mb-4">Select a room to restore this tenant.</p>
+            <select
+              value={unarchiveModal.roomId}
+              onChange={(e) => setUnarchiveModal((prev) => ({ ...prev, roomId: e.target.value }))}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+            >
+              <option value="">Select a room</option>
+              {availableRooms.map((r) => (
+                <option key={r.id} value={r.id}>
+                  Room {r.roomNumber} — Floor {r.floor} ({r.availabilityMessage || `Capacity: ${r.capacity}`})
+                </option>
+              ))}
+            </select>
+            <div className="flex justify-end gap-3 mt-5">
+              <ActionButton variant="neutral" onClick={() => setUnarchiveModal({ open: false, id: null, roomId: '' })}>
+                Cancel
+              </ActionButton>
+              <ActionButton onClick={handleUnarchive}>Unarchive</ActionButton>
+            </div>
           </div>
         </div>
       )}
@@ -249,6 +346,7 @@ const Tenants = () => {
                 <th className="text-left px-4 py-3 font-medium text-slate-300">Type</th>
                 <th className="text-left px-4 py-3 font-medium text-slate-300 hidden md:table-cell">Department</th>
                 <th className="text-left px-4 py-3 font-medium text-slate-300">Room</th>
+                <th className="text-left px-4 py-3 font-medium text-slate-300 hidden lg:table-cell">Remarks</th>
                 <th className="text-left px-4 py-3 font-medium text-slate-300">Status</th>
                 <th className="text-left px-4 py-3 font-medium text-slate-300">Actions</th>
               </tr>
@@ -265,6 +363,13 @@ const Tenants = () => {
                   </td>
                   <td className="px-4 py-3 hidden md:table-cell">{t.department || '—'}</td>
                   <td className="px-4 py-3">{t.room?.roomNumber || '—'}</td>
+                  <td className="px-4 py-3 hidden lg:table-cell">
+                    {t.remarks ? (
+                      <span className={`px-2 py-1 rounded-full text-xs font-medium capitalize ${t.remarks === 'graduated' ? 'bg-cyan-100 text-cyan-700' : 'bg-orange-100 text-orange-700'}`}>
+                        {t.remarks}
+                      </span>
+                    ) : '—'}
+                  </td>
                   <td className="px-4 py-3">
                     <span className={`px-2 py-1 rounded-full text-xs font-medium ${t.status === 'active' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>
                       {t.status}
@@ -274,15 +379,21 @@ const Tenants = () => {
                     <div className="flex gap-2">
                       <button onClick={() => handleEdit(t)} className="text-primary-600 hover:underline text-xs">Edit</button>
                       {t.status === 'active' && (
-                        <button onClick={() => setConfirmModal({ open: true, id: t.id })} className="text-yellow-600 hover:underline text-xs">Archive</button>
+                        <>
+                          <button onClick={() => openLeaveModal(t.id, 'archive')} className="text-yellow-600 hover:underline text-xs">Archive</button>
+                          <button onClick={() => openLeaveModal(t.id, 'drop')} className="text-orange-600 hover:underline text-xs">Drop</button>
+                          <button onClick={() => openLeaveModal(t.id, 'graduated')} className="text-cyan-600 hover:underline text-xs">Graduated</button>
+                        </>
                       )}
-                      <button onClick={() => setDeleteModal({ open: true, id: t.id, name: `${t.firstName} {t.lastName}` })} className="text-red-600 hover:underline text-xs">Delete</button>
+                      {t.status === 'archived' && (
+                        <button onClick={() => setUnarchiveModal({ open: true, id: t.id, roomId: '' })} className="text-emerald-600 hover:underline text-xs">Unarchive</button>
+                      )}
                     </div>
                   </td>
                 </tr>
               ))}
               {tenants.length === 0 && (
-                <tr><td colSpan={7} className="px-4 py-8 text-center text-gray-400">No tenant records found.</td></tr>
+                <tr><td colSpan={8} className="px-4 py-8 text-center text-gray-400">No tenant records found.</td></tr>
               )}
             </tbody>
           </table>
@@ -290,11 +401,20 @@ const Tenants = () => {
       </div>
 
       <Pagination page={page} totalPages={totalPages} onPageChange={setPage} />
-      <ConfirmModal open={confirmModal.open} title="Archive Tenant Record" message="Are you sure you want to archive this tenant? This action will remove the tenant from their assigned room."
-        onConfirm={handleArchive} onCancel={() => setConfirmModal({ open: false, id: null })} />
-      <ConfirmModal open={deleteModal.open} title="Delete Tenant"
-        message={`Permanently delete ${deleteModal.name}? This action will also remove all associated payment records and cannot be undone.`}
-        onConfirm={handleDelete} onCancel={() => setDeleteModal({ open: false, id: null, name: '' })} />
+      <ConfirmModal
+        open={confirmModal.open}
+        title={confirmModal.title}
+        message={confirmModal.message}
+        onConfirm={handleLeaveAction}
+        onCancel={() => setConfirmModal({
+          open: false,
+          id: null,
+          action: 'archive',
+          title: 'Archive Tenant Record',
+          message: 'Are you sure you want to archive this tenant? This action will unassign the tenant from their current room.',
+        })}
+        confirmText="Proceed"
+      />
     </div>
   );
 };

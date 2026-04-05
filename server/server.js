@@ -3,6 +3,8 @@ const express = require('express');
 const cors = require('cors');
 const path = require('path');
 const pool = require('./config/config');
+const { ensureActivityTable } = require('./utils/activityLogger');
+const { ensureTenantRemarksColumn } = require('./utils/tenantSchema');
 
 const app = express();
 
@@ -24,6 +26,7 @@ app.use('/api/rooms', require('./routes/rooms.routes'));
 app.use('/api/payments', require('./routes/payments.routes'));
 app.use('/api/visitors', require('./routes/visitors.routes'));
 app.use('/api/dashboard', require('./routes/dashboard.routes'));
+app.use('/api/history', require('./routes/history.routes'));
 
 // Health check
 app.get('/api/health', (req, res) => {
@@ -40,4 +43,10 @@ const PORT = process.env.PORT || 5000;
 
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
+  ensureActivityTable().catch((error) => {
+    console.error('ActivityLogs table initialization failed:', error.message);
+  });
+  ensureTenantRemarksColumn().catch((error) => {
+    console.error('Tenants remarks column initialization failed:', error.message);
+  });
 });
