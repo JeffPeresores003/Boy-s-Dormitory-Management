@@ -2,6 +2,7 @@
 const express = require('express');
 const pool = require('../config/config');
 const { protect, authorize } = require('../middleware/authMiddleware');
+const { logActivity } = require('../utils/activityLogger');
 const router = express.Router();
 
 // All routes require admin authentication
@@ -154,6 +155,19 @@ router.put("/:id", async (req, res) => {
     const room = existing[0];
     const { roomNumber, floor, capacity, status, description } = req.body;
 
+    // Check if trying to archive a room with active tenants
+    if ((status ?? room.status) === 'maintenance' && room.status !== 'maintenance') {
+      const [occupants] = await pool.execute(
+        "SELECT COUNT(*) as count FROM Tenants WHERE roomId = ? AND status = 'active'",
+        [req.params.id]
+      );
+      if (occupants[0].count > 0) {
+        return res.status(400).json({ 
+          message: `Cannot archive room with ${occupants[0].count} active tenant${occupants[0].count > 1 ? 's' : ''}. Please unassign all tenants first.` 
+        });
+      }
+    }
+
     await pool.execute(
       `UPDATE Rooms SET roomNumber = ?, floor = ?, capacity = ?, status = ?, description = ?, updatedAt = NOW() WHERE id = ?`,
       [
@@ -166,10 +180,61 @@ router.put("/:id", async (req, res) => {
       ]
     );
 
+    if ((status ?? room.status) === 'maintenance' && room.status !== 'maintenance') {
+      await logActivity({
+        category: 'archive',
+        entityType: 'room',
+        entityId: room.id,
+        actionType: 'room_archived',
+        title: `Room ${room.roomNumber} was archived`,
+        details: 'Room status was changed to archived.',
+        roomId: room.id,
+        performedBy: req.user.id,
+      });
+    }
+
     const [updated] = await pool.execute("SELECT * FROM Rooms WHERE id = ?", [req.params.id]);
     res.json(updated[0]);
   } catch (error) {
     console.error("Update room error:", error);
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+});
+
+// ---------------- Unarchive Room ---------------- //
+router.put("/:id/unarchive", async (req, res) => {
+  try {
+    const [existing] = await pool.execute("SELECT * FROM Rooms WHERE id = ?", [req.params.id]);
+    if (!existing || existing.length === 0) {
+      return res.status(404).json({ message: 'Room not found' });
+    }
+
+    const room = existing[0];
+    const [occupants] = await pool.execute(
+      "SELECT COUNT(*) as count FROM Tenants WHERE roomId = ? AND status = 'active'",
+      [req.params.id]
+    );
+    const newStatus = occupants[0].count >= room.capacity ? 'full' : 'available';
+
+    await pool.execute(
+      "UPDATE Rooms SET status = ?, updatedAt = NOW() WHERE id = ?",
+      [newStatus, req.params.id]
+    );
+
+    await logActivity({
+      category: 'archive',
+      entityType: 'room',
+      entityId: room.id,
+      actionType: 'room_unarchived',
+      title: `Room ${room.roomNumber} was unarchived`,
+      details: `Room status restored to ${newStatus}.`,
+      roomId: room.id,
+      performedBy: req.user.id,
+    });
+
+    res.json({ message: 'Room unarchived successfully', status: newStatus });
+  } catch (error) {
+    console.error("Unarchive room error:", error);
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 });
@@ -240,6 +305,20 @@ router.post("/:id/assign", async (req, res) => {
     if (oldRoomId) {
       await updateRoomStatus(oldRoomId);
     }
+
+    await logActivity({
+      category: 'tenant',
+      entityType: 'tenant',
+      entityId: tenant.id,
+      actionType: 'tenant_occupied_room',
+      title: `${tenant.firstName} ${tenant.lastName} occupied Room ${room.roomNumber}`,
+      details: oldRoomId
+        ? `Tenant transferred from room ${oldRoomId} to room ${room.id}.`
+        : `Tenant was assigned to room ${room.id}.`,
+      tenantId: tenant.id,
+      roomId: room.id,
+      performedBy: req.user.id,
+    });
 
     res.json({ message: 'Tenant assigned to room successfully' });
   } catch (error) {

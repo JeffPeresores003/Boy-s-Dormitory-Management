@@ -20,6 +20,8 @@ const AdminPayments = lazy(() => import('./pages/admin/Payments'));
 const AdminPaymentRecords = lazy(() => import('./pages/admin/PaymentRecords'));
 const AdminVisitors = lazy(() => import('./pages/admin/Visitors'));
 const AdminReports = lazy(() => import('./pages/admin/Reports'));
+const AdminHistory = lazy(() => import('./pages/admin/History'));
+const AdminTenantRemarks = lazy(() => import('./pages/admin/TenantRemarks'));
 
 const AnimatedLoader = ({ title = 'Loading...', subtitle = 'Please wait.' }) => (
   <div className="min-h-screen flex items-center justify-center px-4">
@@ -82,8 +84,10 @@ const App = () => {
         <Route path="rooms" element={withSuspense(<AdminRooms />)} />
         <Route path="payments" element={withSuspense(<AdminPayments />)} />
         <Route path="payment-records" element={withSuspense(<AdminPaymentRecords />)} />
+        <Route path="tenant-remarks" element={withSuspense(<AdminTenantRemarks />)} />
         <Route path="visitors" element={withSuspense(<AdminVisitors />)} />
         <Route path="reports" element={withSuspense(<AdminReports />)} />
+        <Route path="history" element={withSuspense(<AdminHistory />)} />
       </Route>
 
       {/* Default redirect */}

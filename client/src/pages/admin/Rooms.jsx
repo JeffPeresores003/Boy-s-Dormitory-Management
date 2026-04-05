@@ -11,7 +11,7 @@ import SkeletonList from '../../shared/SkeletonList';
 const statusColors = {
   available: 'bg-green-100 text-green-700',
   full: 'bg-blue-100 text-blue-700',
-  maintenance: 'bg-red-100 text-red-700',
+  maintenance: 'bg-gray-100 text-gray-700',
 };
 
 const Rooms = () => {
@@ -23,18 +23,19 @@ const Rooms = () => {
   const [statusFilter, setStatusFilter] = useState('');
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState(null);
-  const [confirmModal, setConfirmModal] = useState({ open: false, id: null });
+  const [confirmModal, setConfirmModal] = useState({ open: false, id: null, action: 'archive' });
   const [showAssign, setShowAssign] = useState(null);
   const [assignTenantId, setAssignTenantId] = useState('');
   const [unassignedTenants, setUnassignedTenants] = useState([]);
   const [showOccupants, setShowOccupants] = useState(null);
-  const [form, setForm] = useState({ roomNumber: '', floor: 1, capacity: 1, description: '', status: 'available' });
+  const [form, setForm] = useState({ roomNumber: '', floor: 1, capacity: 1, description: '' });
  
 
   const fetchRooms = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await api.get('/rooms', { params: { page, limit: 5, search, status: statusFilter } });
+      const statusParam = statusFilter === 'archived' ? 'maintenance' : statusFilter;
+      const res = await api.get('/rooms', { params: { page, limit: 5, search, status: statusParam } });
       setRooms(res.data.rooms);
       setTotalPages(res.data.totalPages);
     } catch { toast.error('Unable to load room records.'); }
@@ -46,7 +47,7 @@ const Rooms = () => {
     fetchRooms().finally(() => setLoading(false));
   }, [fetchRooms]);
 
-  const resetForm = () => { setForm({ roomNumber: '', floor: 1, capacity: 1, description: '', status: 'available' }); setEditingId(null); setShowForm(false); };
+  const resetForm = () => { setForm({ roomNumber: '', floor: 1, capacity: 1, description: '' }); setEditingId(null); setShowForm(false); };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -64,18 +65,23 @@ const Rooms = () => {
   };
 
   const handleEdit = (room) => {
-    setForm({ roomNumber: room.roomNumber, floor: room.floor, capacity: room.capacity, description: room.description || '', status: room.status });
+    setForm({ roomNumber: room.roomNumber, floor: room.floor, capacity: room.capacity, description: room.description || '' });
     setEditingId(room.id);
     setShowForm(true);
   };
 
-  const handleDelete = async () => {
+  const handleConfirmRoomAction = async () => {
+    const isUnarchive = confirmModal.action === 'unarchive';
     try {
-      await api.delete(`/rooms/${confirmModal.id}`);
-      toast.success('Room deleted successfully.');
-      setConfirmModal({ open: false, id: null });
+      if (isUnarchive) {
+        await api.put(`/rooms/${confirmModal.id}/unarchive`);
+      } else {
+        await api.put(`/rooms/${confirmModal.id}`, { status: 'maintenance' });
+      }
+      toast.success(`Room ${isUnarchive ? 'unarchived' : 'archived'} successfully.`);
+      setConfirmModal({ open: false, id: null, action: 'archive' });
       fetchRooms();
-    } catch (err) { toast.error(err.response?.data?.message || 'Unable to delete the room.'); }
+    } catch (err) { toast.error(err.response?.data?.message || `Unable to ${isUnarchive ? 'unarchive' : 'archive'} the room.`); }
   };
 
   const openAssign = async (room) => {
@@ -97,12 +103,12 @@ const Rooms = () => {
     } catch (err) { toast.error(err.response?.data?.message || 'Unable to assign the tenant.'); }
   };
 
-  const handleRemove = async (roomId, tenantId) => {
+  const handleArchiveTenant = async (tenantId) => {
     try {
-      await api.post(`/rooms/${roomId}/remove`, { tenantId });
-      toast.success('Tenant removed successfully.');
+      await api.put(`/tenants/${tenantId}/archive`);
+      toast.success('Tenant archived successfully.');
       fetchRooms();
-    } catch (err) { toast.error(err.response?.data?.message || 'Unable to remove the tenant from the room.'); }
+    } catch (err) { toast.error(err.response?.data?.message || 'Unable to archive the tenant.'); }
   };
 
   return (
@@ -124,7 +130,7 @@ const Rooms = () => {
           <option value="">All Status</option>
           <option value="available">Available</option>
           <option value="full">Full</option>
-          <option value="maintenance">Maintenance</option>
+          <option value="archived">Archived</option>
         </select>
       </div>
 
@@ -151,17 +157,6 @@ const Rooms = () => {
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" required />
                 </div>
               </div>
-              {editingId && (
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
-                  <select value={form.status} onChange={(e) => setForm({...form, status: e.target.value})}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm">
-                    <option value="available">Available</option>
-                    <option value="full">Full</option>
-                    <option value="maintenance">Maintenance</option>
-                  </select>
-                </div>
-              )}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
                 <textarea value={form.description} onChange={(e) => setForm({...form, description: e.target.value})}
@@ -231,8 +226,8 @@ const Rooms = () => {
                             </span>
                           </td>
                           <td className="px-4 py-3">
-                            <button onClick={() => { handleRemove(showOccupants.id, o.id); setShowOccupants(null); }} className="text-red-600 hover:underline text-xs">
-                              Remove
+                            <button onClick={() => { handleArchiveTenant(o.id); setShowOccupants(null); }} className="text-yellow-600 hover:underline text-xs">
+                              Archive
                             </button>
                           </td>
                         </tr>
@@ -286,7 +281,9 @@ const Rooms = () => {
                     </span>
                   </td>
                   <td className="px-4 py-3">
-                    <span className={`px-2 py-1 rounded-full text-xs font-medium capitalize ${statusColors[r.status]}`}>{r.status}</span>
+                    <span className={`px-2 py-1 rounded-full text-xs font-medium capitalize ${statusColors[r.status]}`}>
+                      {r.status === 'maintenance' ? 'archived' : r.status}
+                    </span>
                   </td>
                   <td className="px-4 py-3">
                     {r.occupants && r.occupants.length > 0 ? (
@@ -306,7 +303,12 @@ const Rooms = () => {
                       {r.isAvailable && (
                         <button onClick={() => openAssign(r)} className="text-green-600 hover:underline text-xs">Assign</button>
                       )}
-                      <button onClick={() => setConfirmModal({ open: true, id: r.id })} className="text-red-600 hover:underline text-xs">Delete</button>
+                      {r.status !== 'maintenance' && (
+                        <button onClick={() => setConfirmModal({ open: true, id: r.id, action: 'archive' })} className="text-yellow-600 hover:underline text-xs">Archive</button>
+                      )}
+                      {r.status === 'maintenance' && (
+                        <button onClick={() => setConfirmModal({ open: true, id: r.id, action: 'unarchive' })} className="text-emerald-600 hover:underline text-xs">Unarchive</button>
+                      )}
                     </div>
                   </td>
                 </tr>
@@ -320,8 +322,13 @@ const Rooms = () => {
       </div>
 
       <Pagination page={page} totalPages={totalPages} onPageChange={setPage} />
-      <ConfirmModal open={confirmModal.open} title="Delete Room" message="Are you sure you want to delete this room? Rooms with assigned occupants cannot be deleted."
-        onConfirm={handleDelete} onCancel={() => setConfirmModal({ open: false, id: null })} />
+      <ConfirmModal
+        open={confirmModal.open}
+        title={confirmModal.action === 'unarchive' ? 'Unarchive Room' : 'Archive Room'}
+        message={confirmModal.action === 'unarchive' ? 'Are you sure you want to unarchive this room?' : 'Are you sure you want to archive this room?'}
+        onConfirm={handleConfirmRoomAction}
+        onCancel={() => setConfirmModal({ open: false, id: null, action: 'archive' })}
+      />
     </div>
   );
 };
