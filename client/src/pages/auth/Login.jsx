@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import toast from 'react-hot-toast';
@@ -21,12 +21,72 @@ const Login = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [showWelcome, setShowWelcome] = useState(false);
+  const canvasRef = useRef(null);
   const { login } = useAuth();
   const navigate = useNavigate();
 
   useEffect(() => {
     localStorage.setItem('loginEmail', email);
   }, [email]);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    const chars = '01ABCDEFGHIJKLMNOPQRSTUVWXYZ#$%&*+=<>?@';
+    const fontSize = 16;
+    let animationId;
+    let drops = [];
+
+    const setup = () => {
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+
+      const columns = Math.max(1, Math.floor(canvas.width / fontSize));
+      drops = Array.from({ length: columns }, () => Math.floor(Math.random() * -40));
+    };
+
+    const draw = () => {
+      // Semi-transparent fill keeps the trailing matrix effect.
+      ctx.fillStyle = 'rgba(2, 6, 23, 0.12)';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      ctx.font = `${fontSize}px monospace`;
+      ctx.fillStyle = 'rgba(74, 222, 128, 0.95)';
+
+      for (let i = 0; i < drops.length; i += 1) {
+        const text = chars[Math.floor(Math.random() * chars.length)];
+        const x = i * fontSize;
+        const y = drops[i] * fontSize;
+
+        ctx.fillText(text, x, y);
+
+        if (y > canvas.height && Math.random() > 0.975) {
+          drops[i] = 0;
+        }
+
+        drops[i] += 1;
+      }
+
+      animationId = window.requestAnimationFrame(draw);
+    };
+
+    setup();
+    draw();
+
+    const handleResize = () => setup();
+    window.addEventListener('resize', handleResize);
+
+    return () => {
+      window.removeEventListener('resize', handleResize);
+      if (animationId) {
+        window.cancelAnimationFrame(animationId);
+      }
+    };
+  }, []);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -47,8 +107,24 @@ const Login = () => {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-primary-900 via-primary-800 to-primary-700 px-4 dark:bg-[#0a1627]">
-      <div className="w-full max-w-4xl bg-white rounded-2xl shadow-2xl flex flex-col md:flex-row overflow-hidden" style={{background: 'linear-gradient(135deg, #e0f7fa 0%, #ffffff 100%)'}}>
+    <div className="relative min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-950 via-[#04160b] to-slate-900 px-4 overflow-hidden">
+      <style>{`
+        .matrix-overlay {
+          position: absolute;
+          inset: 0;
+          pointer-events: none;
+          z-index: 0;
+          background:
+            radial-gradient(ellipse at top, rgba(34, 197, 94, 0.18), rgba(2, 6, 23, 0.25) 44%, rgba(2, 6, 23, 0.55) 100%),
+            linear-gradient(transparent 96%, rgba(34, 197, 94, 0.1) 100%);
+          background-size: 100% 100%, 100% 5px;
+        }
+      `}</style>
+
+      <canvas ref={canvasRef} className="absolute inset-0 z-0" aria-hidden="true" />
+      <div className="matrix-overlay" aria-hidden="true" />
+
+      <div className="relative z-10 w-full max-w-4xl bg-white rounded-2xl shadow-2xl flex flex-col md:flex-row overflow-hidden" style={{background: 'linear-gradient(135deg, #e0f7fa 0%, #ffffff 100%)'}}>
         {/* Left: Logo and Title with curve */}
         <div className="flex flex-col items-center justify-center md:w-1/2 w-full py-12 px-8 bg-gradient-to-br from-cyan-400 to-cyan-600 rounded-ee-[120px] rounded-se-[120px]">
           <img src="/Bisu.png" alt="BISU Logo" className="w-24 h-24 rounded-full mb-6 object-cover shadow-md border-4 border-white" />
