@@ -5,10 +5,10 @@ require('dotenv').config({ path: path.join(__dirname, '../.env') });
 
 // Create MySQL connection pool
 const realPool = mysql.createPool({
-  host: process.env.DB_HOST || 'localhost',
-  user: process.env.DB_USER || 'root',
-  password: process.env.DB_PASSWORD || '',
-  database: process.env.DB_NAME || 'dormitory_db',
+  host: process.env.DB_HOST || '192.185.48.158',
+  user: process.env.DB_USER || 'bisublar_bds',
+  password: process.env.DB_PASSWORD || 'B1subl4r_bds<3!',
+  database: process.env.DB_NAME || 'bisublar_bds',
   port: process.env.DB_PORT || 3306,
   waitForConnections: true,
   connectionLimit: 10,
