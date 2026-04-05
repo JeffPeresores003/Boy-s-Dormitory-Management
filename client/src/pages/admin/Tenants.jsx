@@ -5,7 +5,6 @@ import SearchBar from '../../components/SearchBar';
 import Pagination from '../../components/Pagination';
 import ConfirmModal from '../../components/ConfirmModal';
 import SkeletonList from '../../shared/SkeletonList';
-import AdminPageHeader from '../../components/AdminPageHeader';
 import ActionButton from '../../components/ActionButton';
 
 const Tenants = () => {
@@ -28,7 +27,7 @@ const Tenants = () => {
   const [unarchiveModal, setUnarchiveModal] = useState({ open: false, id: null, roomId: '' });
   const [form, setForm] = useState({
     firstName: '', lastName: '', email: '',
-    contact: '', type: 'student', department: '', roomId: '', guardianName: '', guardianContact: '', remarks: '',
+    contact: '', type: 'student', department: '', roomId: '', guardianName: '', guardianContact: '', remarks: '', amount: '', duration: '1 sem',
   });
 
   const fetchTenants = useCallback(async () => {
@@ -58,7 +57,7 @@ const Tenants = () => {
   const availableRooms = rooms.filter(r => r.status === 'available');
 
   const resetForm = () => {
-    setForm({ firstName: '', lastName: '', email: '', contact: '', type: 'student', department: '', roomId: '', guardianName: '', guardianContact: '', remarks: '' });
+    setForm({ firstName: '', lastName: '', email: '', contact: '', type: 'student', department: '', roomId: '', guardianName: '', guardianContact: '', remarks: '', amount: '', duration: '1 sem' });
     setEditingId(null);
     setShowForm(false);
   };
@@ -86,7 +85,7 @@ const Tenants = () => {
       email: tenant.email, contact: tenant.contact,
       type: tenant.type, department: tenant.department || '',
       roomId: tenant.roomId || '', guardianName: tenant.guardianName || '', guardianContact: tenant.guardianContact || '',
-      remarks: tenant.remarks || '',
+      remarks: tenant.remarks || '', amount: tenant.amount ?? '', duration: tenant.duration || '1 sem',
     });
     setEditingId(tenant.id);
     setShowForm(true);
@@ -237,6 +236,30 @@ const Tenants = () => {
                 <label className="block text-sm font-medium text-gray-700 mb-1">Department</label>
                 <input value={form.department} onChange={(e) => setForm({...form, department: e.target.value})}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Amount *</label>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={form.amount}
+                  onChange={(e) => setForm({ ...form, amount: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Duration *</label>
+                <select
+                  value={form.duration}
+                  onChange={(e) => setForm({ ...form, duration: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                  required
+                >
+                  <option value="1 sem">1 sem</option>
+                  <option value="2 sem">2 sem</option>
+                </select>
               </div>
               <div className="sm:col-span-2">
                 <label className="block text-sm font-medium text-gray-700 mb-1">Room *</label>

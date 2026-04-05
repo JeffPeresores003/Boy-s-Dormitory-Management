@@ -13,12 +13,9 @@ const statusColors = {
   partial: 'bg-yellow-100 text-yellow-700',
 };
 
-const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
-
 const Payments = () => {
-  const now = new Date();
-
   const [payments, setPayments] = useState([]);
+  const [tenants, setTenants] = useState([]);
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
@@ -27,23 +24,23 @@ const Payments = () => {
   const [showBilling, setShowBilling] = useState(null);
 
   const [showCreateModal, setShowCreateModal] = useState(false);
-  const [createYear, setCreateYear] = useState(now.getFullYear());
-  const [createMonth, setCreateMonth] = useState(now.getMonth() + 1);
-  const [createSemester, setCreateSemester] = useState('');
-  const [createDefaultAmount, setCreateDefaultAmount] = useState('');
-  const [creating, setCreating] = useState(false);
+  const [openingCreateModal, setOpeningCreateModal] = useState(false);
+  const [createForm, setCreateForm] = useState({
+    tenantId: '',
+    amount: '',
+    dueDate: '',
+    semester: '',
+    description: 'Monthly Dormitory Fee',
+    paymentMethod: 'cash',
+  });
+  const [creatingPayment, setCreatingPayment] = useState(false);
   const [recordModal, setRecordModal] = useState({
     open: false,
     payment: null,
     amountPaid: '',
     receiptNumber: '',
   });
-  const [editModal, setEditModal] = useState({
-    open: false,
-    payment: null,
-    amount: '',
-    semester: '',
-  });
+  const [recordingPayment, setRecordingPayment] = useState(false);
 
 
   // Derive billing cycle label from the current payments data
@@ -69,27 +66,72 @@ const Payments = () => {
     fetchPayments().finally(() => setLoading(false));
   }, [fetchPayments]);
 
-  const handleCreateBatch = async () => {
-    setCreating(true);
+  const fetchTenantOptions = useCallback(async () => {
     try {
-      const payload = { year: createYear, month: createMonth };
-      if (createSemester.trim()) {
-        payload.semester = createSemester.trim();
-      }
-      if (createDefaultAmount !== '') {
-        payload.defaultAmount = parseFloat(createDefaultAmount);
-      }
+      const res = await api.get('/payments/tenants/options', {
+        params: { excludeWithExistingBilling: true },
+      });
+      setTenants(res.data.tenants || []);
+    } catch {
+      toast.error('Unable to load active tenants for payment creation.');
+    }
+  }, []);
 
-      const res = await api.post('/payments/create-batch', payload);
-      toast.success(`Billing cycle created successfully. ${res.data.created} payment record(s) generated.`);
+  const handleOpenCreateModal = async () => {
+    if (openingCreateModal) return;
+
+    setOpeningCreateModal(true);
+    try {
+      await fetchTenantOptions();
+      setShowCreateModal(true);
+    } finally {
+      setOpeningCreateModal(false);
+    }
+  };
+
+  const handleTenantChangeInCreate = (tenantId) => {
+    const selectedTenant = tenants.find((t) => t.id === Number(tenantId));
+    setCreateForm((prev) => ({
+      ...prev,
+      tenantId,
+      amount: selectedTenant?.amount ? String(selectedTenant.amount) : '',
+      semester: selectedTenant?.duration || prev.semester,
+    }));
+  };
+
+  const handleCreatePayment = async () => {
+    if (!createForm.tenantId || !createForm.dueDate) {
+      toast.error('Tenant and due date are required.');
+      return;
+    }
+
+    setCreatingPayment(true);
+    try {
+      const payload = {
+        tenantId: Number(createForm.tenantId),
+        amount: createForm.amount !== '' ? parseFloat(createForm.amount) : undefined,
+        dueDate: createForm.dueDate,
+        semester: createForm.semester,
+        description: createForm.description,
+        paymentMethod: createForm.paymentMethod,
+      };
+
+      await api.post('/payments', payload);
+      toast.success('Billing created successfully.');
       setShowCreateModal(false);
-      setCreateSemester('');
-      setCreateDefaultAmount('');
+      setCreateForm({
+        tenantId: '',
+        amount: '',
+        dueDate: '',
+        semester: '',
+        description: 'Monthly Dormitory Fee',
+        paymentMethod: 'cash',
+      });
       fetchPayments();
     } catch (err) {
-      toast.error(err.response?.data?.message || 'Unable to create the billing cycle.');
+      toast.error(err.response?.data?.message || 'Unable to create payment.');
     } finally {
-      setCreating(false);
+      setCreatingPayment(false);
     }
   };
 
@@ -119,6 +161,7 @@ const Payments = () => {
       return;
     }
 
+    setRecordingPayment(true);
     try {
       await api.put(`/payments/${recordModal.payment.id}/record`, {
         amountPaid: typedAmount,
@@ -127,99 +170,21 @@ const Payments = () => {
       toast.success('Payment recorded successfully.');
       setRecordModal({ open: false, payment: null, amountPaid: '', receiptNumber: '' });
       fetchPayments();
-    } catch (err) { toast.error(err.response?.data?.message || 'Unable to record the payment.'); }
-  };
-
-  const handleOpenEditModal = (payment) => {
-    setEditModal({
-      open: true,
-      payment,
-      amount: String(payment.amount ?? ''),
-      semester: payment.semester || '',
-    });
-  };
-
-  const handleSubmitEditPayment = async () => {
-    if (!editModal.payment) return;
-
-    const typedAmount = parseFloat(editModal.amount);
-    if (!typedAmount || typedAmount <= 0) {
-      toast.error('Please enter a valid total amount.');
-      return;
-    }
-
-    if (typedAmount < parseFloat(editModal.payment.amountPaid)) {
-      toast.error('Total amount cannot be less than already paid amount.');
-      return;
-    }
-
-    try {
-      await api.put(`/payments/${editModal.payment.id}`, {
-        amount: typedAmount,
-        semester: editModal.semester,
-      });
-      toast.success('Payment details updated successfully.');
-      setEditModal({ open: false, payment: null, amount: '', semester: '' });
-      fetchPayments();
     } catch (err) {
-      toast.error(err.response?.data?.message || 'Unable to update payment details.');
+      toast.error(err.response?.data?.message || 'Unable to record the payment.');
+    } finally {
+      setRecordingPayment(false);
     }
-  };
-
-  const handlePrintBilling = (p) => {
-    const tenantName = p.tenant ? `${p.tenant.firstName} ${p.tenant.lastName}` : '—';
-    const balance = (parseFloat(p.amount) - parseFloat(p.amountPaid)).toLocaleString();
-    const win = window.open('', '_blank', 'width=640,height=750');
-    win.document.write(`
-      <!DOCTYPE html><html><head><title>Billing Statement</title>
-      <style>
-        * { box-sizing: border-box; margin: 0; padding: 0; }
-        body { font-family: Arial, sans-serif; padding: 40px; color: #111; font-size: 14px; }
-        .header { text-align: center; margin-bottom: 28px; }
-        .header h2 { font-size: 20px; font-weight: 700; margin-bottom: 4px; }
-        .header p { color: #555; font-size: 13px; }
-        .divider { border: none; border-top: 2px solid #111; margin: 16px 0; }
-        .row { display: flex; justify-content: space-between; padding: 9px 0; border-bottom: 1px solid #e5e7eb; }
-        .row:last-child { border-bottom: none; }
-        .label { color: #6b7280; }
-        .value { font-weight: 600; text-align: right; }
-        .green { color: #16a34a; }
-        .red { color: #dc2626; }
-        .badge { padding: 2px 10px; border-radius: 999px; font-size: 12px; font-weight: 600; text-transform: capitalize;
-          background: ${
-            p.status === 'paid' ? '#dcfce7' : p.status === 'partial' ? '#fef9c3' : '#fee2e2'
-          }; color: ${
-            p.status === 'paid' ? '#15803d' : p.status === 'partial' ? '#92400e' : '#b91c1c'
-          }; }
-        .footer { margin-top: 32px; font-size: 12px; color: #9ca3af; text-align: center; }
-      </style></head><body>
-      <div class='header'>
-        <h2>Billing Statement</h2>
-        <p>BISU Boy's Dormitory</p>
-      </div>
-      <hr class='divider' />
-      <div class='row'><span class='label'>Tenant</span><span class='value'>${tenantName}</span></div>
-      <div class='row'><span class='label'>Semester</span><span class='value'>${p.semester || '—'}</span></div>
-      <div class='row'><span class='label'>Due Date</span><span class='value'>${p.dueDate || '—'}</span></div>
-      <div class='row'><span class='label'>Total Amount</span><span class='value'>₱${parseFloat(p.amount).toLocaleString()}</span></div>
-      <div class='row'><span class='label'>Receipt No.</span><span class='value'>${p.receiptNumber || '—'}</span></div>
-      ${p.paymentDate ? `<div class='row'><span class='label'>Payment Date</span><span class='value'>${p.paymentDate}</span></div>` : ''}
-      <hr class='divider' />
-      <p class='footer'>Printed on ${new Date().toLocaleDateString('en-PH', { year:'numeric', month:'long', day:'numeric' })}</p>
-      <script>window.onload = function(){ window.print(); }<\/script>
-      </body></html>
-    `);
-    win.document.close();
   };
 
   return (
     <div>
       <AdminPageHeader
-        title="Payments"
+        title="Billings"
         subtitle={billingLabel ? `Current billing cycle: ${billingLabel}` : 'No active billing cycle. Create a billing cycle to begin.'}
         actions={
-          <ActionButton variant="success" onClick={() => setShowCreateModal(true)}>
-            + Create Billing Cycle
+          <ActionButton variant="success" onClick={handleOpenCreateModal} disabled={openingCreateModal}>
+            {openingCreateModal ? 'Loading...' : '+ Create Billing'}
           </ActionButton>
         }
       />
@@ -238,52 +203,85 @@ const Payments = () => {
       {/* Create Payment Modal */}
       {showCreateModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-          <div className="bg-slate-900/95 border border-slate-700 rounded-xl shadow-xl max-w-sm w-full mx-4 p-6 text-slate-100">
-            <h2 className="text-lg font-semibold mb-1">Create Semester Billing Cycle</h2>
-            <p className="text-xs text-slate-400 mb-4">This will generate a payment record for every active tenant. The due date will automatically be set to the last day of the selected month.</p>
-            <div className="grid grid-cols-2 gap-3 mb-5">
+          <div className="bg-slate-900/95 border border-slate-700 rounded-xl shadow-xl max-w-md w-full mx-4 p-6 text-slate-100">
+            <h2 className="text-lg font-semibold mb-1">Create Billing</h2>
+            <p className="text-xs text-slate-400 mb-4">Create a billing record using tenant defaults from the Tenants table (amount and duration).</p>
+            <div className="space-y-3 mb-5">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Month</label>
-                <select value={createMonth} onChange={e => setCreateMonth(Number(e.target.value))}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm">
-                  {MONTHS.map((m, i) => (
-                    <option key={i + 1} value={i + 1}>{m}</option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Year</label>
-                <select value={createYear} onChange={e => setCreateYear(Number(e.target.value))}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm">
-                  {[now.getFullYear() - 1, now.getFullYear(), now.getFullYear() + 1].map(y => (
-                    <option key={y} value={y}>{y}</option>
-                  ))}
-                </select>
-              </div>
-              <div className="col-span-2">
-                <label className="block text-sm font-medium text-gray-700 mb-1">Semester (Optional)</label>
-                <input
-                  value={createSemester}
-                  onChange={(e) => setCreateSemester(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm mb-3"
-                  placeholder="e.g. 1st Semester 2026"
-                />
-                <label className="block text-sm font-medium text-gray-700 mb-1">Room Payment (Optional)</label>
-                <input
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  value={createDefaultAmount}
-                  onChange={(e) => setCreateDefaultAmount(e.target.value)}
+                <label className="block text-sm font-medium text-gray-700 mb-1">Tenant *</label>
+                <select
+                  value={createForm.tenantId}
+                  onChange={(e) => handleTenantChangeInCreate(e.target.value)}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
-                  placeholder="Use if tenant has no previous payment amount"
+                >
+                  <option value="">Select tenant</option>
+                  {tenants.map((t) => (
+                    <option key={t.id} value={t.id}>
+                      {t.tenantNumber} - {t.lastName}, {t.firstName} ({t.duration || 'No duration'})
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Amount *</label>
+                  <input
+                    type="number"
+                    min="0.01"
+                    step="0.01"
+                    value={createForm.amount}
+                    onChange={(e) => setCreateForm((prev) => ({ ...prev, amount: e.target.value }))}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                    placeholder="0.00"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Due Date *</label>
+                  <input
+                    type="date"
+                    value={createForm.dueDate}
+                    onChange={(e) => setCreateForm((prev) => ({ ...prev, dueDate: e.target.value }))}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                  />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Duration / Semester</label>
+                  <input
+                    value={createForm.semester}
+                    onChange={(e) => setCreateForm((prev) => ({ ...prev, semester: e.target.value }))}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                    placeholder="1 sem or 2 sem"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Payment Method</label>
+                  <select
+                    value={createForm.paymentMethod}
+                    onChange={(e) => setCreateForm((prev) => ({ ...prev, paymentMethod: e.target.value }))}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                  >
+                    <option value="cash">Cash</option>
+                    <option value="gcash">GCash</option>
+                    <option value="bank_transfer">Bank Transfer</option>
+                    <option value="scholarship">Scholarship</option>
+                  </select>
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
+                <input
+                  value={createForm.description}
+                  onChange={(e) => setCreateForm((prev) => ({ ...prev, description: e.target.value }))}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
                 />
               </div>
             </div>
             <div className="flex justify-end gap-3">
               <ActionButton variant="neutral" onClick={() => setShowCreateModal(false)}>Cancel</ActionButton>
-              <ActionButton onClick={handleCreateBatch} disabled={creating}>
-                {creating ? 'Creating...' : 'Create Cycle'}
+              <ActionButton onClick={handleCreatePayment} disabled={creatingPayment}>
+                {creatingPayment ? 'Creating...' : 'Create Billing'}
               </ActionButton>
             </div>
           </div>
@@ -338,47 +336,9 @@ const Payments = () => {
               <ActionButton variant="neutral" onClick={() => setRecordModal({ open: false, payment: null, amountPaid: '', receiptNumber: '' })}>
                 Cancel
               </ActionButton>
-              <ActionButton onClick={handleSubmitRecordPayment}>Save Payment</ActionButton>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Edit Payment Modal */}
-      {editModal.open && editModal.payment && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-          <div className="bg-slate-900/95 border border-slate-700 rounded-xl shadow-xl max-w-md w-full mx-4 p-6 text-slate-100">
-            <h2 className="text-lg font-semibold mb-1">Edit Payment Details</h2>
-            <p className="text-xs text-slate-400 mb-4">
-              {editModal.payment.tenant ? `${editModal.payment.tenant.firstName} ${editModal.payment.tenant.lastName}` : 'Tenant'}
-            </p>
-            <div className="space-y-3">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Total Room Payment</label>
-                <input
-                  type="number"
-                  min="0.01"
-                  step="0.01"
-                  value={editModal.amount}
-                  onChange={(e) => setEditModal((prev) => ({ ...prev, amount: e.target.value }))}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Semester</label>
-                <input
-                  value={editModal.semester}
-                  onChange={(e) => setEditModal((prev) => ({ ...prev, semester: e.target.value }))}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
-                  placeholder="e.g. 1st Semester 2026"
-                />
-              </div>
-            </div>
-            <div className="flex justify-end gap-3 mt-5">
-              <ActionButton variant="neutral" onClick={() => setEditModal({ open: false, payment: null, amount: '', semester: '' })}>
-                Cancel
+              <ActionButton onClick={handleSubmitRecordPayment} disabled={recordingPayment}>
+                {recordingPayment ? 'Saving...' : 'Save Payment'}
               </ActionButton>
-              <ActionButton onClick={handleSubmitEditPayment}>Save Changes</ActionButton>
             </div>
           </div>
         </div>
@@ -387,19 +347,21 @@ const Payments = () => {
       {/* Billing Modal */}
       {showBilling && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-          <div className="bg-slate-900/95 border border-slate-700 rounded-xl shadow-xl max-w-md w-full mx-4 p-6 text-slate-100">
+          <div className="bg-slate-900/95 border border-slate-700 rounded-xl shadow-xl max-w-2xl w-full mx-4 p-6 text-slate-100 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-semibold">Billing Statement</h2>
+              <h2 className="text-lg font-semibold">Billing Details</h2>
               <button onClick={() => setShowBilling(null)} className="text-slate-400 hover:text-slate-200 text-xl leading-none">&times;</button>
             </div>
-            <div className="space-y-3 text-sm">
+
+            <h3 className="text-sm font-semibold text-slate-200 mb-2">Payment Information</h3>
+            <div className="space-y-3 text-sm mb-6">
               <div className="flex justify-between py-2 border-b border-gray-100">
                 <span className="text-gray-500">Tenant</span>
                 <span className="font-medium">{showBilling.tenant ? `${showBilling.tenant.firstName} ${showBilling.tenant.lastName}` : '—'}</span>
               </div>
               <div className="flex justify-between py-2 border-b border-gray-100">
-                <span className="text-gray-500">Semester</span>
-                <span>{showBilling.semester || '—'}</span>
+                <span className="text-gray-500">Duration</span>
+                <span>{showBilling.tenant?.duration || showBilling.semester || '—'}</span>
               </div>
               <div className="flex justify-between py-2 border-b border-gray-100">
                 <span className="text-gray-500">Due Date</span>
@@ -409,21 +371,65 @@ const Payments = () => {
                 <span className="text-gray-500">Total Amount</span>
                 <span className="font-medium">₱{parseFloat(showBilling.amount).toLocaleString()}</span>
               </div>
-              <div className="flex justify-between py-2 border-b border-gray-100">
-                <span className="text-gray-500">Receipt Number</span>
-                <span className="font-mono text-xs">{showBilling.receiptNumber || '—'}</span>
-              </div>
-              {showBilling.paymentDate && (
-                <div className="flex justify-between py-2">
-                  <span className="text-gray-500">Payment Date</span>
-                  <span>{showBilling.paymentDate}</span>
-                </div>
-              )}
             </div>
-            <div className="flex justify-between items-center mt-5">
-              <ActionButton variant="info" onClick={() => handlePrintBilling(showBilling)}>
-                Print Statement
-              </ActionButton>
+
+            <h3 className="text-sm font-semibold text-slate-200 mb-2">Tenant Information</h3>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+              <div className="rounded-lg border border-slate-700 bg-slate-900/60 px-3 py-2">
+                <p className="text-xs text-slate-400">Tenant Number</p>
+                <p className="font-medium">{showBilling.tenant?.tenantNumber || '—'}</p>
+              </div>
+              <div className="rounded-lg border border-slate-700 bg-slate-900/60 px-3 py-2">
+                <p className="text-xs text-slate-400">Type</p>
+                <p className="font-medium capitalize">{showBilling.tenant?.type || '—'}</p>
+              </div>
+              <div className="rounded-lg border border-slate-700 bg-slate-900/60 px-3 py-2">
+                <p className="text-xs text-slate-400">Duration</p>
+                <p className="font-medium">{showBilling.tenant?.duration || '—'}</p>
+              </div>
+              <div className="rounded-lg border border-slate-700 bg-slate-900/60 px-3 py-2">
+                <p className="text-xs text-slate-400">Tenant Amount</p>
+                <p className="font-medium">{showBilling.tenant?.amount ? `₱${parseFloat(showBilling.tenant.amount).toLocaleString()}` : '—'}</p>
+              </div>
+              <div className="rounded-lg border border-slate-700 bg-slate-900/60 px-3 py-2">
+                <p className="text-xs text-slate-400">Email</p>
+                <p className="font-medium break-all">{showBilling.tenant?.email || '—'}</p>
+              </div>
+              <div className="rounded-lg border border-slate-700 bg-slate-900/60 px-3 py-2">
+                <p className="text-xs text-slate-400">Contact</p>
+                <p className="font-medium">{showBilling.tenant?.contact || '—'}</p>
+              </div>
+              <div className="rounded-lg border border-slate-700 bg-slate-900/60 px-3 py-2">
+                <p className="text-xs text-slate-400">Department</p>
+                <p className="font-medium">{showBilling.tenant?.department || '—'}</p>
+              </div>
+              <div className="rounded-lg border border-slate-700 bg-slate-900/60 px-3 py-2">
+                <p className="text-xs text-slate-400">Tenant Status</p>
+                <p className="font-medium capitalize">{showBilling.tenant?.status || '—'}</p>
+              </div>
+              <div className="rounded-lg border border-slate-700 bg-slate-900/60 px-3 py-2">
+                <p className="text-xs text-slate-400">Current Room ID</p>
+                <p className="font-medium">{showBilling.tenant?.roomId || '—'}</p>
+              </div>
+              <div className="rounded-lg border border-slate-700 bg-slate-900/60 px-3 py-2">
+                <p className="text-xs text-slate-400">Last Room Number</p>
+                <p className="font-medium">{showBilling.tenant?.lastRoomNumber || '—'}</p>
+              </div>
+              <div className="rounded-lg border border-slate-700 bg-slate-900/60 px-3 py-2">
+                <p className="text-xs text-slate-400">Guardian Name</p>
+                <p className="font-medium">{showBilling.tenant?.guardianName || '—'}</p>
+              </div>
+              <div className="rounded-lg border border-slate-700 bg-slate-900/60 px-3 py-2">
+                <p className="text-xs text-slate-400">Guardian Contact</p>
+                <p className="font-medium">{showBilling.tenant?.guardianContact || '—'}</p>
+              </div>
+              <div className="sm:col-span-2 rounded-lg border border-slate-700 bg-slate-900/60 px-3 py-2">
+                <p className="text-xs text-slate-400">Remarks</p>
+                <p className="font-medium capitalize">{showBilling.tenant?.remarks || '—'}</p>
+              </div>
+            </div>
+
+            <div className="flex justify-end items-center mt-5">
               <ActionButton variant="neutral" onClick={() => setShowBilling(null)}>Close</ActionButton>
             </div>
           </div>
@@ -438,33 +444,31 @@ const Payments = () => {
           <table className="w-full text-sm">
             <thead className="bg-gray-50 border-b border-gray-200">
               <tr>
-                <th className="text-left px-4 py-3 font-medium text-gray-600">Tenant</th>
-                <th className="text-left px-4 py-3 font-medium text-gray-600 hidden xl:table-cell">Semester</th>
+                <th className="text-left px-4 py-3 font-medium text-gray-600">ID</th>
+                <th className="text-left px-4 py-3 font-medium text-gray-600">Name</th>
+                <th className="text-left px-4 py-3 font-medium text-gray-600">Duration</th>
                 <th className="text-left px-4 py-3 font-medium text-gray-600">Amount</th>
-                <th className="text-left px-4 py-3 font-medium text-gray-600 hidden lg:table-cell">Receipt No.</th>
+                <th className="text-left px-4 py-3 font-medium text-gray-600">Balance</th>
+                <th className="text-left px-4 py-3 font-medium text-gray-600">Due Date</th>
                 <th className="text-left px-4 py-3 font-medium text-gray-600">Status</th>
-                <th className="text-left px-4 py-3 font-medium text-gray-600 hidden lg:table-cell">Due Date</th>
                 <th className="text-left px-4 py-3 font-medium text-gray-600">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
               {payments.map(p => (
                 <tr key={p.id} className="hover:bg-gray-50">
-                  <td className="px-4 py-3 font-medium">{p.tenant ? `${p.tenant.firstName} ${p.tenant.lastName}` : '—'}</td>
-                  <td className="px-4 py-3 hidden xl:table-cell">
-                    <div className="text-xs text-gray-600">{p.semester || '—'}</div>
-                    <div className="text-[11px] text-gray-400">Paid: ₱{parseFloat(p.amountPaid || 0).toLocaleString()}</div>
-                  </td>
+                  <td className="px-4 py-3 font-medium">{p.tenant?.tenantNumber || '—'}</td>
+                  <td className="px-4 py-3">{p.tenant ? `${p.tenant.firstName} ${p.tenant.lastName}` : '—'}</td>
+                  <td className="px-4 py-3">{p.tenant?.duration || p.semester || '—'}</td>
                   <td className="px-4 py-3">₱{parseFloat(p.amount).toLocaleString()}</td>
-                  <td className="px-4 py-3 hidden lg:table-cell font-mono text-xs">{p.receiptNumber || '—'}</td>
+                  <td className="px-4 py-3">₱{Math.max(0, parseFloat(p.amount || 0) - parseFloat(p.amountPaid || 0)).toLocaleString()}</td>
+                  <td className="px-4 py-3">{p.dueDate}</td>
                   <td className="px-4 py-3">
                     <span className={`px-2 py-1 rounded-full text-xs font-medium capitalize ${statusColors[p.status]}`}>{p.status}</span>
                   </td>
-                  <td className="px-4 py-3 hidden lg:table-cell">{p.dueDate}</td>
                   <td className="px-4 py-3">
                     <div className="flex gap-2">
-                      <button onClick={() => handleOpenEditModal(p)} className="px-2 py-1 text-xs font-medium text-violet-700 bg-violet-100 rounded border border-violet-300 hover:bg-violet-200">Edit</button>
-                      <button onClick={() => setShowBilling(p)} className="px-2 py-1 text-xs font-medium text-blue-200 bg-blue-500/15 rounded border border-blue-400/30 hover:bg-blue-500/25">View Statement</button>
+                      <button onClick={() => setShowBilling(p)} className="px-2 py-1 text-xs font-medium text-blue-200 bg-blue-500/15 rounded border border-blue-400/30 hover:bg-blue-500/25">View Details</button>
                       {p.status !== 'paid' && (
                         <button onClick={() => handleOpenRecordModal(p)} className="px-2 py-1 text-xs font-medium text-emerald-200 bg-emerald-500/15 rounded border border-emerald-400/30 hover:bg-emerald-500/25">Record Payment</button>
                       )}
@@ -473,7 +477,7 @@ const Payments = () => {
                 </tr>
               ))}
               {payments.length === 0 && (
-                <tr><td colSpan={7} className="px-4 py-8 text-center text-gray-400">No payment records found.</td></tr>
+                <tr><td colSpan={8} className="px-4 py-8 text-center text-gray-400">No payment records found.</td></tr>
               )}
             </tbody>
           </table>

@@ -195,14 +195,23 @@ const updateRoomStatus = async (roomId) => {
 // ---------------- Create Tenant ---------------- //
 router.post("/", async (req, res) => {
   try {
-    const { firstName, lastName, email, contact, type, department, roomId, guardianName, guardianContact, remarks, payment } = req.body;
+    const { firstName, lastName, email, contact, type, department, roomId, guardianName, guardianContact, remarks, amount, duration, payment } = req.body;
 
-    if (!firstName || !lastName || !email || !contact || !type || !roomId) {
-      return res.status(400).json({ message: 'First name, last name, email, contact, type, and room are required' });
+    if (!firstName || !lastName || !email || !contact || !type || !roomId || amount === undefined || amount === null || amount === '' || !duration) {
+      return res.status(400).json({ message: 'First name, last name, email, contact, type, room, amount, and duration are required' });
     }
 
     if (!['student', 'staff', 'faculty'].includes(type)) {
       return res.status(400).json({ message: 'Type must be student, staff, or faculty' });
+    }
+
+    const parsedAmount = parseFloat(amount);
+    if (!Number.isFinite(parsedAmount) || parsedAmount <= 0) {
+      return res.status(400).json({ message: 'Amount must be a valid number greater than 0' });
+    }
+
+    if (!['1 sem', '2 sem'].includes(duration)) {
+      return res.status(400).json({ message: 'Duration must be either 1 sem or 2 sem' });
     }
 
     // Verify room exists and has space
@@ -236,9 +245,9 @@ router.post("/", async (req, res) => {
     const tenantNumber = `TN-${String(nextNum).padStart(4, '0')}`;
 
     const [result] = await pool.execute(
-      `INSERT INTO Tenants (tenantNumber, firstName, lastName, email, contact, type, department, roomId, guardianName, guardianContact, remarks, createdAt, updatedAt)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())`,
-      [tenantNumber, firstName, lastName, email, contact, type, department || null, roomId, guardianName || null, guardianContact || null, remarks || null]
+      `INSERT INTO Tenants (tenantNumber, firstName, lastName, email, contact, type, department, roomId, guardianName, guardianContact, remarks, amount, duration, createdAt, updatedAt)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())`,
+      [tenantNumber, firstName, lastName, email, contact, type, department || null, roomId, guardianName || null, guardianContact || null, remarks || null, parsedAmount, duration]
     );
 
     // Update room status
@@ -298,7 +307,18 @@ router.put("/:id", async (req, res) => {
     }
 
     const tenant = existing[0];
-    const { firstName, lastName, email, contact, type, department, roomId, guardianName, guardianContact, status, remarks } = req.body;
+    const { firstName, lastName, email, contact, type, department, roomId, guardianName, guardianContact, status, remarks, amount, duration } = req.body;
+
+    if (amount !== undefined && amount !== null && amount !== '') {
+      const parsedAmount = parseFloat(amount);
+      if (!Number.isFinite(parsedAmount) || parsedAmount <= 0) {
+        return res.status(400).json({ message: 'Amount must be a valid number greater than 0' });
+      }
+    }
+
+    if (duration !== undefined && duration !== '' && !['1 sem', '2 sem'].includes(duration)) {
+      return res.status(400).json({ message: 'Duration must be either 1 sem or 2 sem' });
+    }
 
     const oldRoomId = tenant.roomId;
     const newRoomId = roomId !== undefined ? (roomId || null) : tenant.roomId;
@@ -319,7 +339,7 @@ router.put("/:id", async (req, res) => {
       `UPDATE Tenants SET
         firstName = ?, lastName = ?, email = ?, contact = ?, type = ?,
         department = ?, roomId = ?, guardianName = ?, guardianContact = ?,
-        status = ?, remarks = ?, updatedAt = NOW()
+        status = ?, remarks = ?, amount = ?, duration = ?, updatedAt = NOW()
        WHERE id = ?`,
       [
         firstName ?? tenant.firstName,
@@ -333,6 +353,8 @@ router.put("/:id", async (req, res) => {
         guardianContact !== undefined ? (guardianContact || null) : tenant.guardianContact,
         status ?? tenant.status,
         remarks !== undefined ? (remarks || null) : tenant.remarks,
+        amount !== undefined && amount !== '' ? parseFloat(amount) : tenant.amount,
+        duration !== undefined && duration !== '' ? duration : tenant.duration,
         req.params.id,
       ]
     );
