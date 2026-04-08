@@ -57,7 +57,17 @@ Or open `database/db.sql` in your MySQL client (MySQLyog, phpMyAdmin, etc.) and 
 
 ### 3. Configure environment variables
 
-Create a `.env` file inside the `server/` folder:
+Copy `server/.env.example` to `server/.env` and update values:
+
+```bash
+# Windows (PowerShell)
+copy server\\.env.example server\\.env
+
+# macOS/Linux
+cp server/.env.example server/.env
+```
+
+Then verify this content in `server/.env`:
 
 ```
 PORT=5000
@@ -80,6 +90,9 @@ ADMIN_PASSWORD=Admin@123
 
 # Frontend URL (CORS)
 CLIENT_URL=http://localhost:5173
+
+# Optional: multiple allowed frontend origins (comma-separated)
+# CLIENT_URLS=http://localhost:5173,https://your-frontend-domain.com
 ```
 
 > Update `DB_PASSWORD` if your MySQL root account has a password.
