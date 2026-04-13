@@ -13,6 +13,12 @@ const statusColors = {
   partial: 'bg-yellow-100 text-yellow-700',
 };
 
+const toSemesterLabel = (value) => {
+  if (value === '1 sem') return '1st Semester';
+  if (value === '2 sem') return '2nd Semester';
+  return value || '';
+};
+
 const Payments = () => {
   const [payments, setPayments] = useState([]);
   const [tenants, setTenants] = useState([]);
@@ -91,11 +97,11 @@ const Payments = () => {
 
   const handleTenantChangeInCreate = (tenantId) => {
     const selectedTenant = tenants.find((t) => t.id === Number(tenantId));
+
     setCreateForm((prev) => ({
       ...prev,
       tenantId,
       amount: selectedTenant?.amount ? String(selectedTenant.amount) : '',
-      semester: selectedTenant?.duration || prev.semester,
     }));
   };
 
@@ -217,7 +223,7 @@ const Payments = () => {
                   <option value="">Select tenant</option>
                   {tenants.map((t) => (
                     <option key={t.id} value={t.id}>
-                      {t.tenantNumber} - {t.lastName}, {t.firstName} ({t.duration || 'No duration'})
+                      {t.tenantNumber} - {t.lastName}, {t.firstName}
                     </option>
                   ))}
                 </select>
@@ -248,12 +254,15 @@ const Payments = () => {
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Duration / Semester</label>
-                  <input
+                  <select
                     value={createForm.semester}
                     onChange={(e) => setCreateForm((prev) => ({ ...prev, semester: e.target.value }))}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
-                    placeholder="1 sem or 2 sem"
-                  />
+                  >
+                    <option value="">Select semester</option>
+                    <option value="1st Semester">1st Semester</option>
+                    <option value="2nd Semester">2nd Semester</option>
+                  </select>
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Payment Method</label>
@@ -361,7 +370,7 @@ const Payments = () => {
               </div>
               <div className="flex justify-between py-2 border-b border-gray-100">
                 <span className="text-gray-500">Duration</span>
-                <span>{showBilling.tenant?.duration || showBilling.semester || '—'}</span>
+                <span>{showBilling.semester || toSemesterLabel(showBilling.tenant?.duration) || '—'}</span>
               </div>
               <div className="flex justify-between py-2 border-b border-gray-100">
                 <span className="text-gray-500">Due Date</span>
@@ -385,7 +394,7 @@ const Payments = () => {
               </div>
               <div className="rounded-lg border border-slate-700 bg-slate-900/60 px-3 py-2">
                 <p className="text-xs text-slate-400">Duration</p>
-                <p className="font-medium">{showBilling.tenant?.duration || '—'}</p>
+                <p className="font-medium">{showBilling.semester || toSemesterLabel(showBilling.tenant?.duration) || '—'}</p>
               </div>
               <div className="rounded-lg border border-slate-700 bg-slate-900/60 px-3 py-2">
                 <p className="text-xs text-slate-400">Tenant Amount</p>
@@ -459,7 +468,7 @@ const Payments = () => {
                 <tr key={p.id} className="hover:bg-gray-50">
                   <td className="px-4 py-3 font-medium">{p.tenant?.tenantNumber || '—'}</td>
                   <td className="px-4 py-3">{p.tenant ? `${p.tenant.firstName} ${p.tenant.lastName}` : '—'}</td>
-                  <td className="px-4 py-3">{p.tenant?.duration || p.semester || '—'}</td>
+                  <td className="px-4 py-3">{p.semester || toSemesterLabel(p.tenant?.duration) || '—'}</td>
                   <td className="px-4 py-3">₱{parseFloat(p.amount).toLocaleString()}</td>
                   <td className="px-4 py-3">₱{Math.max(0, parseFloat(p.amount || 0) - parseFloat(p.amountPaid || 0)).toLocaleString()}</td>
                   <td className="px-4 py-3">{p.dueDate}</td>
